@@ -1,19 +1,109 @@
 import React, { useState } from 'react'
-import { MOCK_USER } from '../mockData'
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  updateProfile
+} from 'firebase/auth'
+import { doc, setDoc, getDoc, collection, query, where, getDocs, serverTimestamp } from 'firebase/firestore'
+import { auth, db, googleProvider } from '../firebase'
+
+function generateLabCode() {
+  const prefix = ['NANO', 'BIO', 'CHEM', 'PHYS', 'MAT'][Math.floor(Math.random() * 5)]
+  const num = String(Math.floor(Math.random() * 900) + 100)
+  return `${prefix}-${num}`
+}
 
 export default function AuthScreen({ onLogin }) {
   const [tab, setTab] = useState('login')
+  const [mode, setMode] = useState('join') // join | create
   const [email, setEmail] = useState('')
   const [pw, setPw] = useState('')
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
+  const [labName, setLabName] = useState('')
+  const [role, setRole] = useState('학부인턴')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
-  // TODO: Replace with real Firebase Auth
-  // import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup } from 'firebase/auth'
-  // import { auth, googleProvider } from '../firebase'
-  const handleLogin = () => onLogin(MOCK_USER)
-  const handleSignup = () => onLogin({ ...MOCK_USER, name: name || MOCK_USER.name })
-  const handleGoogle = () => onLogin(MOCK_USER)
+  const handleLogin = async () => {
+    setError(''); setLoading(true)
+    try {
+      const cred = await signInWithEmailAndPassword(auth, email, pw)
+      const userDoc = await getDoc(doc(db, 'users', cred.user.uid))
+      if (!userDoc.exists()) { setError('사용자 정보가 없습니다.'); setLoading(false); return }
+      onLogin({ id: cred.user.uid, ...userDoc.data() })
+    } catch (e) {
+      setError('이메일 또는 비밀번호가 올바르지 않습니다.')
+    }
+    setLoading(false)
+  }
+
+  const handleSignup = async () => {
+    setError(''); setLoading(true)
+    if (!name.trim()) { setError('이름을 입력해주세요.'); setLoading(false); return }
+
+    try {
+      if (mode === 'join') {
+        // 초대코드로 연구실 찾기
+        const labsQ = query(collection(db, 'labs'), where('code', '==', code.toUpperCase()))
+        const labsSnap = await getDocs(labsQ)
+        if (labsSnap.empty) { setError('존재하지 않는 초대코드입니다.'); setLoading(false); return }
+        const labDoc = labsSnap.docs[0]
+
+        const cred = await createUserWithEmailAndPassword(auth, email, pw)
+        await updateProfile(cred.user, { displayName: name })
+
+        const userData = { name, email, role, labId: labDoc.id, createdAt: serverTimestamp() }
+        await setDoc(doc(db, 'users', cred.user.uid), userData)
+        await setDoc(doc(db, 'labs', labDoc.id, 'members', cred.user.uid), {
+          name, role, joinedAt: serverTimestamp()
+        })
+        onLogin({ id: cred.user.uid, ...userData, labId: labDoc.id })
+
+      } else {
+        // 연구실 생성
+        if (!labName.trim()) { setError('연구실 이름을 입력해주세요.'); setLoading(false); return }
+        const newCode = generateLabCode()
+        const cred = await createUserWithEmailAndPassword(auth, email, pw)
+        await updateProfile(cred.user, { displayName: name })
+
+        const labRef = doc(collection(db, 'labs'))
+        await setDoc(labRef, {
+          name: labName, code: newCode,
+          profName: name, createdAt: serverTimestamp()
+        })
+        const userData = { name, email, role: '교수', labId: labRef.id, createdAt: serverTimestamp() }
+        await setDoc(doc(db, 'users', cred.user.uid), userData)
+        await setDoc(doc(db, 'labs', labRef.id, 'members', cred.user.uid), {
+          name, role: '교수', joinedAt: serverTimestamp()
+        })
+        alert(`연구실 생성 완료!\n초대코드: ${newCode}\n구성원들에게 공유하세요.`)
+        onLogin({ id: cred.user.uid, ...userData })
+      }
+    } catch (e) {
+      if (e.code === 'auth/email-already-in-use') setError('이미 사용 중인 이메일입니다.')
+      else if (e.code === 'auth/weak-password') setError('비밀번호는 6자 이상이어야 합니다.')
+      else setError('오류가 발생했습니다: ' + e.message)
+    }
+    setLoading(false)
+  }
+
+  const handleGoogle = async () => {
+    setError(''); setLoading(true)
+    try {
+      const cred = await signInWithPopup(auth, googleProvider)
+      const userDoc = await getDoc(doc(db, 'users', cred.user.uid))
+      if (userDoc.exists()) {
+        onLogin({ id: cred.user.uid, ...userDoc.data() })
+      } else {
+        setError('가입된 계정이 없습니다. 이메일로 먼저 가입해주세요.')
+      }
+    } catch (e) {
+      setError('Google 로그인 실패')
+    }
+    setLoading(false)
+  }
 
   return (
     <div className="auth-screen">
@@ -24,6 +114,13 @@ export default function AuthScreen({ onLogin }) {
           <div className={`auth-tab${tab === 'login' ? ' active' : ''}`} onClick={() => setTab('login')}>로그인</div>
           <div className={`auth-tab${tab === 'signup' ? ' active' : ''}`} onClick={() => setTab('signup')}>가입</div>
         </div>
+
+        {error && (
+          <div style={{ background: '#FDEAEA', border: '1px solid #f8c5c5', borderRadius: 8, padding: '10px 12px', fontSize: 13, color: '#c23b3b', marginBottom: 14 }}>
+            {error}
+          </div>
+        )}
+
         {tab === 'login' ? (
           <>
             <div className="form-group">
@@ -32,11 +129,14 @@ export default function AuthScreen({ onLogin }) {
             </div>
             <div className="form-group">
               <label className="form-label">비밀번호</label>
-              <input className="form-input" type="password" value={pw} onChange={e => setPw(e.target.value)} placeholder="••••••••" />
+              <input className="form-input" type="password" value={pw} onChange={e => setPw(e.target.value)} placeholder="••••••••"
+                onKeyDown={e => e.key === 'Enter' && handleLogin()} />
             </div>
-            <button className="btn-primary" onClick={handleLogin}>로그인</button>
+            <button className="btn-primary" onClick={handleLogin} disabled={loading}>
+              {loading ? '로그인 중...' : '로그인'}
+            </button>
             <div className="or-divider">또는</div>
-            <button className="google-btn" onClick={handleGoogle}>
+            <button className="google-btn" onClick={handleGoogle} disabled={loading}>
               <svg width="18" height="18" viewBox="0 0 18 18">
                 <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4" />
                 <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z" fill="#34A853" />
@@ -48,6 +148,17 @@ export default function AuthScreen({ onLogin }) {
           </>
         ) : (
           <>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+              <button onClick={() => setMode('join')}
+                style={{ flex: 1, padding: '10px', border: `2px solid ${mode === 'join' ? 'var(--green)' : 'var(--border)'}`, borderRadius: 8, background: mode === 'join' ? 'var(--green-light)' : 'var(--card)', color: mode === 'join' ? 'var(--green)' : 'var(--text2)', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
+                🔑 코드로 입장
+              </button>
+              <button onClick={() => setMode('create')}
+                style={{ flex: 1, padding: '10px', border: `2px solid ${mode === 'create' ? 'var(--green)' : 'var(--border)'}`, borderRadius: 8, background: mode === 'create' ? 'var(--green-light)' : 'var(--card)', color: mode === 'create' ? 'var(--green)' : 'var(--text2)', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
+                🏗️ 연구실 생성
+              </button>
+            </div>
+
             <div className="form-group">
               <label className="form-label">이름</label>
               <input className="form-input" value={name} onChange={e => setName(e.target.value)} placeholder="홍길동" />
@@ -58,13 +169,34 @@ export default function AuthScreen({ onLogin }) {
             </div>
             <div className="form-group">
               <label className="form-label">비밀번호</label>
-              <input className="form-input" type="password" value={pw} onChange={e => setPw(e.target.value)} placeholder="••••••••" />
+              <input className="form-input" type="password" value={pw} onChange={e => setPw(e.target.value)} placeholder="6자 이상" />
             </div>
-            <div className="form-group">
-              <label className="form-label">연구실 초대코드</label>
-              <input className="form-input" value={code} onChange={e => setCode(e.target.value.toUpperCase())} placeholder="NANO-042" />
-            </div>
-            <button className="btn-primary" onClick={handleSignup}>가입하기</button>
+
+            {mode === 'join' ? (
+              <>
+                <div className="form-group">
+                  <label className="form-label">역할</label>
+                  <select className="form-select" value={role} onChange={e => setRole(e.target.value)}>
+                    <option value="학부인턴">학부인턴</option>
+                    <option value="대학원생">대학원생</option>
+                    <option value="교수">교수</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">연구실 초대코드</label>
+                  <input className="form-input" value={code} onChange={e => setCode(e.target.value.toUpperCase())} placeholder="예: NANO-042" />
+                </div>
+              </>
+            ) : (
+              <div className="form-group">
+                <label className="form-label">연구실 이름</label>
+                <input className="form-input" value={labName} onChange={e => setLabName(e.target.value)} placeholder="나노과학 연구실" />
+              </div>
+            )}
+
+            <button className="btn-primary" onClick={handleSignup} disabled={loading}>
+              {loading ? '처리 중...' : mode === 'join' ? '입장하기' : '연구실 만들기'}
+            </button>
           </>
         )}
       </div>
