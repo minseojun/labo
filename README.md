@@ -7,7 +7,7 @@ npm install
 npm run dev
 ```
 
-브라우저에서 http://localhost:5173 열기
+브라우저에서 http://localhost:3000 열기
 
 ## Firebase 연동
 
