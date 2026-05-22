@@ -268,14 +268,40 @@ function CalendarSection({ labId, schedules, schedulesHook, notices, noticesHook
       {notices.length === 0 && (
         <div className="card" style={{ textAlign: 'center', color: 'var(--text2)', fontSize: 13 }}>공지사항이 없습니다</div>
       )}
-      {notices.map(n => (
-        <div key={n.id} className="notice-card">
-          {n.pinned && <div className="notice-pin">📌 고정</div>}
-          <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 6 }}>{n.body}</div>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+      {/* 고정 공지 먼저, 나머지는 최신순 */}
+      {[...notices.filter(n => n.pinned), ...notices.filter(n => !n.pinned)].map(n => (
+        <div key={n.id} className="notice-card" style={{ borderColor: n.pinned ? '#f8c5c5' : 'var(--border)', borderWidth: n.pinned ? 1.5 : 1 }}>
+          {n.pinned && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
+              <span style={{ fontSize: 12, color: 'var(--red)', fontWeight: 700 }}>📌 고정 공지</span>
+            </div>
+          )}
+          <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 8 }}>{n.body}</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ fontSize: 11, color: 'var(--text2)' }}>{n.author}</div>
-            <button onClick={() => noticesHook.remove(n.id)}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text2)', fontSize: 12 }}>삭제</button>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {/* 교수만 고정/해제 가능 */}
+              {user.role === '교수' && (
+                <button onClick={async () => {
+                  const { updateDoc, doc } = await import('firebase/firestore')
+                  const { db } = await import('../firebase')
+                  await updateDoc(doc(db, 'labs', labId, 'notices', n.id), { pinned: !n.pinned })
+                }} style={{
+                  padding: '3px 8px', border: '1px solid var(--border)',
+                  borderRadius: 6, background: n.pinned ? 'var(--red-light)' : 'var(--bg)',
+                  color: n.pinned ? 'var(--red)' : 'var(--text2)',
+                  fontSize: 11, cursor: 'pointer', fontWeight: 600
+                }}>
+                  {n.pinned ? '📌 해제' : '📌 고정'}
+                </button>
+              )}
+              {(user.role === '교수' || n.author === user.name) && (
+                <button onClick={() => noticesHook.remove(n.id)}
+                  style={{ padding: '3px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg)', color: 'var(--text2)', fontSize: 11, cursor: 'pointer' }}>
+                  삭제
+                </button>
+              )}
+            </div>
           </div>
         </div>
       ))}
