@@ -1,42 +1,23 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState } from 'react'
 import { formatTime } from '../utils'
 
-function TimerCard({ timer, onDelete }) {
-  const [running, setRunning] = useState(false)
-  const [timeLeft, setTimeLeft] = useState(timer.duration)
-  const [done, setDone] = useState(false)
-  const [showMemo, setShowMemo] = useState(false)
-  const [memo, setMemo] = useState('')
-  const intervalRef = useRef(null)
-  const total = timer.duration
+const presets = [[5 * 60, '5분'], [15 * 60, '15분'], [30 * 60, '30분'], [60 * 60, '1시간']]
 
-  useEffect(() => {
-    if (running && timeLeft > 0) {
-      intervalRef.current = setInterval(() => {
-        setTimeLeft(p => {
-          if (p <= 1) {
-            setRunning(false)
-            setDone(true)
-            setShowMemo(true)
-            // TODO: Notification API
-            if ('Notification' in window && Notification.permission === 'granted') {
-              new Notification(`⏱ ${timer.name} 완료!`, { body: '실험이 완료되었습니다.' })
-            }
-            return 0
-          }
-          return p - 1
-        })
-      }, 1000)
-    }
-    return () => clearInterval(intervalRef.current)
-  }, [running])
+function TimerCard({ timer, onUpdate, onDelete }) {
+  const [showMemo, setShowMemo] = useState(false)
+  const [memo, setMemo] = useState(timer.memo || '')
+
+  const total = timer.duration
+  const timeLeft = timer.timeLeft
+  const running = timer.running
+  const done = timer.done
 
   const pct = timeLeft / total
   const r = 44
   const circ = 2 * Math.PI * r
   const dash = circ * pct
   const color = done ? 'var(--red)' : running ? 'var(--green)' : 'var(--yellow)'
-  const bg = done ? 'var(--red-light)' : running ? 'var(--green-light)' : 'var(--yellow-light)'
+  const bg    = done ? 'var(--red-light)' : running ? 'var(--green-light)' : 'var(--yellow-light)'
 
   return (
     <div className="timer-card" style={{ borderColor: done ? '#f8c5c5' : running ? '#a8dfc8' : 'var(--border)' }}>
@@ -50,70 +31,76 @@ function TimerCard({ timer, onDelete }) {
           </svg>
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
             <div style={{ fontSize: 17, fontWeight: 700, color }}>{formatTime(timeLeft)}</div>
-            <div style={{ fontSize: 9, color: 'var(--text2)', marginTop: 1 }}>{done ? '완료' : running ? '실행중' : '대기'}</div>
+            <div style={{ fontSize: 9, color: 'var(--text2)', marginTop: 1 }}>
+              {done ? '완료' : running ? '실행중' : '대기'}
+            </div>
           </div>
         </div>
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 3 }}>{timer.name}</div>
           {timer.equipment && <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 6 }}>🔬 {timer.equipment}</div>}
-          <div style={{ fontSize: 11, color: 'var(--text2)' }}>설정: {formatTime(timer.duration)}</div>
+          <div style={{ fontSize: 11, color: 'var(--text2)' }}>설정: {formatTime(total)}</div>
         </div>
       </div>
+
       <div className="timer-controls">
         {!done && (
           running ? (
-            <button className="timer-btn btn-pause" onClick={() => setRunning(false)}>⏸ 일시정지</button>
+            <button className="timer-btn btn-pause" onClick={() => onUpdate(timer.id, { running: false })}>⏸ 일시정지</button>
           ) : (
-            <button className="timer-btn btn-play" onClick={() => { setDone(false); setRunning(true) }}>
+            <button className="timer-btn btn-play" onClick={() => onUpdate(timer.id, { running: true, done: false })}>
               ▶ {timeLeft < total ? '계속' : '시작'}
             </button>
           )
         )}
         <button className="timer-btn" style={{ background: 'var(--bg)', color: 'var(--text2)', flex: .5 }}
-          onClick={() => { setTimeLeft(total); setRunning(false); setDone(false) }}>↺</button>
+          onClick={() => onUpdate(timer.id, { running: false, done: false, timeLeft: total })}>↺</button>
         <button className="timer-btn" style={{ background: 'var(--red-light)', color: 'var(--red)', flex: .5 }}
           onClick={() => onDelete(timer.id)}>✕</button>
       </div>
 
+      {/* 완료 메모 */}
+      {done && !showMemo && (
+        <button onClick={() => setShowMemo(true)} style={{
+          marginTop: 10, width: '100%', padding: '8px',
+          background: 'var(--green-light)', color: 'var(--green)',
+          border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer'
+        }}>✅ 완료 — 메모 남기기</button>
+      )}
       {showMemo && (
-        <div style={{ marginTop: 12, padding: 12, background: 'var(--green-light)', borderRadius: 'var(--radius-sm)' }}>
-          <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--green)', marginBottom: 8 }}>✅ 완료! 메모를 남겨주세요</div>
+        <div style={{ marginTop: 12, padding: 12, background: 'var(--green-light)', borderRadius: 8 }}>
+          <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--green)', marginBottom: 8 }}>실험 메모</div>
           <textarea className="form-input" rows={2} value={memo} onChange={e => setMemo(e.target.value)}
-            placeholder="실험 결과, 조건 메모..." style={{ resize: 'none', marginBottom: 8 }} />
-          <button className="btn-primary" style={{ padding: 8, fontSize: 13 }} onClick={() => setShowMemo(false)}>저장</button>
+            placeholder="실험 결과, 조건 등..." style={{ resize: 'none', marginBottom: 8 }} />
+          <button className="btn-primary" style={{ padding: 8, fontSize: 13 }}
+            onClick={() => { onUpdate(timer.id, { memo }); setShowMemo(false) }}>저장</button>
+        </div>
+      )}
+      {timer.memo && !showMemo && (
+        <div style={{ marginTop: 8, padding: '6px 10px', background: 'var(--bg)', borderRadius: 6, fontSize: 12, color: 'var(--text2)' }}>
+          📝 {timer.memo}
         </div>
       )}
     </div>
   )
 }
 
-export default function TimerTab({ equipment }) {
-  const [timers, setTimers] = useState([
-    { id: 't1', name: 'PR 소프트베이크', duration: 5 * 60, equipment: '스핀코터' },
-    { id: 't2', name: '현상 (AZ-400K)', duration: 60, equipment: '' },
-  ])
+export default function TimerTab({ timers, onUpdate, onDelete, onAdd, equipment }) {
   const [showAdd, setShowAdd] = useState(false)
   const [form, setForm] = useState({ name: '', duration: 300, equipment: '' })
   const [preset, setPreset] = useState(300)
   const [custom, setCustom] = useState('')
 
-  const presets = [[5 * 60, '5분'], [15 * 60, '15분'], [30 * 60, '30분'], [60 * 60, '1시간']]
-
   const addTimer = () => {
     if (!form.name) return
-    setTimers(p => [...p, { id: 't' + Date.now(), ...form }])
+    onAdd({ ...form })
     setShowAdd(false)
     setForm({ name: '', duration: 300, equipment: '' })
     setCustom('')
     setPreset(300)
   }
 
-  useEffect(() => {
-    // Request notification permission
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission()
-    }
-  }, [])
+  const runningCount = timers.filter(t => t.running).length
 
   return (
     <div>
@@ -121,7 +108,11 @@ export default function TimerTab({ equipment }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <div className="page-title">실험 타이머</div>
-            <div className="page-subtitle">{timers.length}개 등록됨</div>
+            <div className="page-subtitle">
+              {runningCount > 0
+                ? <span style={{ color: 'var(--green)', fontWeight: 600 }}>⏱ {runningCount}개 실행 중</span>
+                : `${timers.length}개 등록됨`}
+            </div>
           </div>
           <button onClick={() => setShowAdd(true)}
             style={{ padding: '8px 14px', background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
@@ -137,7 +128,7 @@ export default function TimerTab({ equipment }) {
           <div style={{ fontSize: 12, marginTop: 4 }}>+ 추가 버튼을 눌러 실험 타이머를 시작하세요</div>
         </div>
       ) : timers.map(t => (
-        <TimerCard key={t.id} timer={t} onDelete={id => setTimers(p => p.filter(t => t.id !== id))} />
+        <TimerCard key={t.id} timer={t} onUpdate={onUpdate} onDelete={onDelete} />
       ))}
 
       {showAdd && (
@@ -148,7 +139,7 @@ export default function TimerTab({ equipment }) {
             <div className="form-group">
               <label className="form-label">이름</label>
               <input className="form-input" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
-                placeholder="예: UV 노광, 소프트베이크" />
+                placeholder="예: UV 노광, 소프트베이크" autoFocus />
             </div>
             <div className="form-group">
               <label className="form-label">시간 프리셋</label>
