@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { onAuthStateChanged } from 'firebase/auth'
 import { doc, getDoc } from 'firebase/firestore'
 import { auth, db } from './firebase'
@@ -29,12 +29,89 @@ function LoadingScreen() {
   )
 }
 
+// ===== 타이머 전역 관리 훅 =====
+function useTimers() {
+  const [timers, setTimers] = useState([])
+  const intervalsRef = useRef({})
+
+  // 타이머 틱 — 탭 전환해도 계속 돌아감
+  const startInterval = useCallback((id) => {
+    if (intervalsRef.current[id]) return
+    intervalsRef.current[id] = setInterval(() => {
+      setTimers(prev => prev.map(t => {
+        if (t.id !== id || !t.running) return t
+        const next = t.timeLeft - 1
+        if (next <= 0) {
+          clearInterval(intervalsRef.current[id])
+          delete intervalsRef.current[id]
+          // 브라우저 알림
+          if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification(`⏱ ${t.name} 완료!`, { body: '실험이 완료되었습니다.' })
+          }
+          return { ...t, timeLeft: 0, running: false, done: true }
+        }
+        return { ...t, timeLeft: next }
+      }))
+    }, 1000)
+  }, [])
+
+  const stopInterval = useCallback((id) => {
+    clearInterval(intervalsRef.current[id])
+    delete intervalsRef.current[id]
+  }, [])
+
+  const addTimer = useCallback((config) => {
+    const id = 't' + Date.now()
+    setTimers(prev => [...prev, {
+      id,
+      name: config.name,
+      duration: config.duration,
+      equipment: config.equipment || '',
+      timeLeft: config.duration,
+      running: false,
+      done: false,
+      memo: '',
+    }])
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission()
+    }
+  }, [])
+
+  const updateTimer = useCallback((id, patch) => {
+    setTimers(prev => prev.map(t => {
+      if (t.id !== id) return t
+      const updated = { ...t, ...patch }
+      // running 상태 변화에 따라 interval 제어
+      if (patch.running === true) startInterval(id)
+      if (patch.running === false) stopInterval(id)
+      // 리셋
+      if (patch.timeLeft === t.duration) stopInterval(id)
+      return updated
+    }))
+  }, [startInterval, stopInterval])
+
+  const deleteTimer = useCallback((id) => {
+    stopInterval(id)
+    setTimers(prev => prev.filter(t => t.id !== id))
+  }, [stopInterval])
+
+  // 언마운트 시 전체 정리
+  useEffect(() => {
+    return () => Object.values(intervalsRef.current).forEach(clearInterval)
+  }, [])
+
+  return { timers, addTimer, updateTimer, deleteTimer }
+}
+
 export default function App() {
   const [user, setUser] = useState(null)
   const [labInfo, setLabInfo] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('home')
   const [showSidebar, setShowSidebar] = useState(false)
+
+  // 타이머 — App 레벨에서 관리해서 탭 전환해도 유지
+  const { timers, addTimer, updateTimer, deleteTimer } = useTimers()
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -43,7 +120,6 @@ export default function App() {
         if (userDoc.exists()) {
           const userData = { id: firebaseUser.uid, ...userDoc.data() }
           setUser(userData)
-          // 연구실 정보 로드
           if (userData.labId) {
             const labDoc = await getDoc(doc(db, 'labs', userData.labId))
             if (labDoc.exists()) setLabInfo({ id: labDoc.id, ...labDoc.data() })
@@ -60,33 +136,33 @@ export default function App() {
   }, [])
 
   const labId = user?.labId
-  const schedulesHook  = useCollection(labId, 'schedules', 'date')
-  const equipmentHook  = useCollection(labId, 'equipment', 'createdAt')
-  const suppliesHook   = useCollection(labId, 'supplies', 'createdAt')
-  const noticesHook    = useCollection(labId, 'notices', 'createdAt')
-  const members        = useMembers(labId)
+  const schedulesHook = useCollection(labId, 'schedules', 'date')
+  const equipmentHook = useCollection(labId, 'equipment', 'createdAt')
+  const suppliesHook  = useCollection(labId, 'supplies', 'createdAt')
+  const noticesHook   = useCollection(labId, 'notices', 'createdAt')
+  const members       = useMembers(labId)
 
   if (authLoading) return <LoadingScreen />
   if (!user) return <AuthScreen onLogin={setUser} />
 
+  const runningCount = timers.filter(t => t.running).length
+
   return (
     <div className="app-shell">
-      {/* 상단 헤더 바 */}
+      {/* 상단 헤더 */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '12px 20px 0',
-        position: 'sticky', top: 0, zIndex: 50,
-        background: 'var(--bg)'
+        padding: '12px 20px 0', position: 'sticky', top: 0, zIndex: 50, background: 'var(--bg)'
       }}>
         <div style={{ fontWeight: 900, fontSize: 22, color: 'var(--green)', letterSpacing: -1 }}>LABO</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 12, color: 'var(--text2)' }}>{labInfo?.name?.slice(0, 10)}{labInfo?.name?.length > 10 ? '...' : ''}</span>
-          {/* 아바타 버튼 → 사이드바 열기 */}
+          <span style={{ fontSize: 12, color: 'var(--text2)' }}>
+            {labInfo?.name?.slice(0, 10)}{labInfo?.name?.length > 10 ? '...' : ''}
+          </span>
           <button onClick={() => setShowSidebar(true)} style={{
             width: 34, height: 34, borderRadius: '50%',
-            background: 'var(--green)', color: '#fff',
-            border: 'none', cursor: 'pointer',
-            fontWeight: 700, fontSize: 13,
+            background: 'var(--green)', color: '#fff', border: 'none', cursor: 'pointer',
+            fontWeight: 700, fontSize: 16,
             display: 'flex', alignItems: 'center', justifyContent: 'center'
           }}>
             {user.avatar || user.name?.slice(-1)}
@@ -106,26 +182,47 @@ export default function App() {
         {activeTab === 'equipment' && (
           <EquipmentTab labId={labId} equipment={equipmentHook.data} equipmentHook={equipmentHook} user={user} />
         )}
-        {activeTab === 'timer' && (
-          <TimerTab equipment={equipmentHook.data} />
-        )}
+        {/* 타이머탭 — 항상 렌더링, display로 숨김 (언마운트 방지) */}
+        <div style={{ display: activeTab === 'timer' ? 'block' : 'none' }}>
+          <TimerTab
+            timers={timers}
+            onAdd={addTimer}
+            onUpdate={updateTimer}
+            onDelete={deleteTimer}
+            equipment={equipmentHook.data}
+          />
+        </div>
         {activeTab === 'supplies' && (
           <SuppliesTab labId={labId} supplies={suppliesHook.data} suppliesHook={suppliesHook} user={user} />
         )}
       </div>
 
+      {/* 탭바 — 타이머 실행중이면 배지 표시 */}
       <div className="tab-bar">
         {TABS.map(t => (
-          <button key={t.id} className={`tab-item${activeTab === t.id ? ' active' : ''}`} onClick={() => setActiveTab(t.id)}>
+          <button key={t.id} className={`tab-item${activeTab === t.id ? ' active' : ''}`}
+            onClick={() => setActiveTab(t.id)}
+            style={{ position: 'relative' }}>
             <span className="tab-icon">{t.icon}</span>
             <span className="tab-label">{t.label}</span>
+            {/* 타이머 실행 중 배지 */}
+            {t.id === 'timer' && runningCount > 0 && (
+              <div style={{
+                position: 'absolute', top: 4, right: '50%', transform: 'translateX(10px)',
+                width: 16, height: 16, borderRadius: '50%',
+                background: 'var(--red)', color: '#fff',
+                fontSize: 9, fontWeight: 700,
+                display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}>{runningCount}</div>
+            )}
           </button>
         ))}
       </div>
 
-      {/* 사이드바 */}
       {showSidebar && (
-        <Sidebar user={user} labInfo={labInfo} members={members} onClose={() => setShowSidebar(false)} onUserUpdate={updated => setUser(updated)} />
+        <Sidebar user={user} labInfo={labInfo} members={members}
+          onClose={() => setShowSidebar(false)}
+          onUserUpdate={updated => setUser(updated)} />
       )}
     </div>
   )
