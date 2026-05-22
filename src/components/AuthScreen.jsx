@@ -14,9 +14,16 @@ function generateLabCode() {
   return `${prefix}-${num}`
 }
 
+const ROLES = [
+  { value: '학부인턴',   emoji: '🎓', desc: '학부 인턴' },
+  { value: '학부연구생', emoji: '🔬', desc: '학부 연구생' },
+  { value: '대학원생',   emoji: '📚', desc: '석·박사 과정' },
+  { value: '교수',       emoji: '👨‍🏫', desc: '지도교수' },
+]
+
 export default function AuthScreen({ onLogin }) {
   const [tab, setTab] = useState('login')
-  const [mode, setMode] = useState('join') // join | create
+  const [mode, setMode] = useState('join')
   const [email, setEmail] = useState('')
   const [pw, setPw] = useState('')
   const [name, setName] = useState('')
@@ -45,7 +52,6 @@ export default function AuthScreen({ onLogin }) {
 
     try {
       if (mode === 'join') {
-        // 초대코드로 연구실 찾기
         const labsQ = query(collection(db, 'labs'), where('code', '==', code.toUpperCase()))
         const labsSnap = await getDocs(labsQ)
         if (labsSnap.empty) { setError('존재하지 않는 초대코드입니다.'); setLoading(false); return }
@@ -62,7 +68,6 @@ export default function AuthScreen({ onLogin }) {
         onLogin({ id: cred.user.uid, ...userData, labId: labDoc.id })
 
       } else {
-        // 연구실 생성
         if (!labName.trim()) { setError('연구실 이름을 입력해주세요.'); setLoading(false); return }
         const newCode = generateLabCode()
         const cred = await createUserWithEmailAndPassword(auth, email, pw)
@@ -175,12 +180,23 @@ export default function AuthScreen({ onLogin }) {
             {mode === 'join' ? (
               <>
                 <div className="form-group">
-                  <label className="form-label">역할</label>
-                  <select className="form-select" value={role} onChange={e => setRole(e.target.value)}>
-                    <option value="학부인턴">학부인턴</option>
-                    <option value="대학원생">대학원생</option>
-                    <option value="교수">교수</option>
-                  </select>
+                  <label className="form-label">역할 선택</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    {ROLES.map(r => (
+                      <button key={r.value} onClick={() => setRole(r.value)} style={{
+                        padding: '10px 8px',
+                        border: `2px solid ${role === r.value ? 'var(--green)' : 'var(--border)'}`,
+                        borderRadius: 10,
+                        background: role === r.value ? 'var(--green-light)' : 'var(--card)',
+                        cursor: 'pointer', textAlign: 'center',
+                        transition: 'all .15s',
+                      }}>
+                        <div style={{ fontSize: 22, marginBottom: 4 }}>{r.emoji}</div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: role === r.value ? 'var(--green)' : 'var(--text)' }}>{r.value}</div>
+                        <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 2 }}>{r.desc}</div>
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 <div className="form-group">
                   <label className="form-label">연구실 초대코드</label>
