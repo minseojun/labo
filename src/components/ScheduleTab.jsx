@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { DAYS } from '../mockData'
 import { fmtDate, getWeekDates } from '../utils'
 import { useMembers } from '../hooks/useFirestore'
-import { updateDoc, doc } from 'firebase/firestore'
+import { updateDoc, doc, addDoc, collection, onSnapshot, orderBy, query, serverTimestamp, deleteDoc } from 'firebase/firestore'
 import { db } from '../firebase'
 
 // ===== 토스트 =====
@@ -19,6 +19,100 @@ function Toast({ message, onDone }) {
       whiteSpace: 'nowrap', boxShadow: '0 4px 16px rgba(0,0,0,.2)',
       animation: 'slideUp .2s ease'
     }}>{message}</div>
+  )
+}
+
+// ===== 공지 댓글 컴포넌트 =====
+function NoticeComments({ labId, noticeId, user }) {
+  const [comments, setComments] = useState([])
+  const [text, setText] = useState('')
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    if (!open || !labId || !noticeId) return
+    const q = query(
+      collection(db, 'labs', labId, 'notices', noticeId, 'comments'),
+      orderBy('createdAt', 'asc')
+    )
+    const unsub = onSnapshot(q, snap => {
+      setComments(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    })
+    return unsub
+  }, [open, labId, noticeId])
+
+  const addComment = async () => {
+    if (!text.trim()) return
+    await addDoc(collection(db, 'labs', labId, 'notices', noticeId, 'comments'), {
+      author: user.name,
+      avatar: user.avatar || '',
+      role: user.role,
+      text,
+      createdAt: serverTimestamp()
+    })
+    setText('')
+  }
+
+  const removeComment = async (cid) => {
+    await deleteDoc(doc(db, 'labs', labId, 'notices', noticeId, 'comments', cid))
+  }
+
+  return (
+    <div style={{ marginTop: 8 }}>
+      {/* 댓글 토글 버튼 */}
+      <button onClick={() => setOpen(p => !p)} style={{
+        background: 'none', border: 'none', cursor: 'pointer',
+        fontSize: 12, color: 'var(--text2)', padding: '2px 0',
+        display: 'flex', alignItems: 'center', gap: 4
+      }}>
+        💬 댓글 {open ? '접기' : '보기'}
+      </button>
+
+      {open && (
+        <div style={{ marginTop: 10 }}>
+          {comments.length === 0 && (
+            <div style={{ fontSize: 12, color: 'var(--text2)', padding: '6px 0 10px' }}>첫 댓글을 남겨보세요</div>
+          )}
+          {comments.map(c => (
+            <div key={c.id} style={{ marginBottom: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                <div style={{
+                  width: 24, height: 24, borderRadius: '50%',
+                  background: c.role === '교수' ? 'var(--purple-light)' : 'var(--green-light)',
+                  color: c.role === '교수' ? 'var(--purple)' : 'var(--green)',
+                  fontSize: c.avatar ? 14 : 10, fontWeight: 700,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+                }}>{c.avatar || c.author?.slice(-1)}</div>
+                <span style={{ fontSize: 12, fontWeight: 600 }}>{c.author}</span>
+                <span style={{ fontSize: 10, color: 'var(--text2)' }}>{c.role}</span>
+                <span style={{ fontSize: 10, color: 'var(--text2)', marginLeft: 'auto' }}>
+                  {c.createdAt?.toDate?.()?.toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) || ''}
+                </span>
+                {(c.author === user.name || user.role === '교수') && (
+                  <button onClick={() => removeComment(c.id)} style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    color: 'var(--text2)', fontSize: 13, padding: '0 2px'
+                  }}>×</button>
+                )}
+              </div>
+              <div style={{
+                background: 'var(--bg)', borderRadius: '0 10px 10px 10px',
+                padding: '7px 10px', fontSize: 13, marginLeft: 30
+              }}>{c.text}</div>
+            </div>
+          ))}
+          <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+            <input className="form-input" style={{ flex: 1, padding: '7px 10px', fontSize: 13 }}
+              value={text} onChange={e => setText(e.target.value)}
+              placeholder="댓글 작성..."
+              onKeyDown={e => e.key === 'Enter' && addComment()} />
+            <button onClick={addComment} style={{
+              padding: '7px 14px', background: 'var(--green)', color: '#fff',
+              border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600
+            }}>전송</button>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -363,7 +457,7 @@ function CalendarSection({ labId, schedules, schedulesHook, notices, noticesHook
         <div key={n.id} className="notice-card" style={{ borderColor: n.pinned ? '#f8c5c5' : 'var(--border)' }}>
           {n.pinned && <div style={{ fontSize: 11, color: 'var(--red)', fontWeight: 700, marginBottom: 4 }}>📌 고정</div>}
           <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 8 }}>{n.body}</div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <div style={{ fontSize: 11, color: 'var(--text2)' }}>{n.author}</div>
             <div style={{ display: 'flex', gap: 6 }}>
               {user.role === '교수' && (
@@ -379,6 +473,9 @@ function CalendarSection({ labId, schedules, schedulesHook, notices, noticesHook
                 </button>
               )}
             </div>
+          </div>
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+            <NoticeComments labId={labId} noticeId={n.id} user={user} />
           </div>
         </div>
       ))}
