@@ -89,7 +89,7 @@ export default function App() {
             fontWeight: 700, fontSize: 13,
             display: 'flex', alignItems: 'center', justifyContent: 'center'
           }}>
-            {user.name?.slice(-1)}
+            {user.avatar || user.name?.slice(-1)}
           </button>
         </div>
       </div>
@@ -125,7 +125,7 @@ export default function App() {
 
       {/* 사이드바 */}
       {showSidebar && (
-        <Sidebar user={user} labInfo={labInfo} members={members} onClose={() => setShowSidebar(false)} />
+        <Sidebar user={user} labInfo={labInfo} members={members} onClose={() => setShowSidebar(false)} onUserUpdate={updated => setUser(updated)} />
       )}
     </div>
   )
