@@ -116,6 +116,62 @@ function NoticeComments({ labId, noticeId, user }) {
   )
 }
 
+// ===== 공지 카드 =====
+function NoticeCard({ n, labId, user, noticesHook, hidden }) {
+  const canAct = user.role === '교수' || n.author === user.name
+
+  return (
+    <div className="notice-card" style={{
+      borderColor: n.pinned ? '#f8c5c5' : 'var(--border)',
+      opacity: hidden ? .7 : 1,
+      background: hidden ? 'var(--bg)' : 'var(--card)'
+    }}>
+      {/* 상단 배지 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+        {n.pinned && <span style={{ fontSize: 10, color: 'var(--red)', fontWeight: 700, background: 'var(--red-light)', padding: '2px 7px', borderRadius: 20 }}>📌 고정</span>}
+        {hidden && <span style={{ fontSize: 10, color: 'var(--text2)', fontWeight: 600, background: 'var(--border)', padding: '2px 7px', borderRadius: 20 }}>숨김</span>}
+      </div>
+
+      <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 8, color: hidden ? 'var(--text2)' : 'var(--text)' }}>{n.body}</div>
+
+      {/* 액션 버튼 */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <div style={{ fontSize: 11, color: 'var(--text2)' }}>{n.author}</div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {/* 고정/해제 — 교수만 */}
+          {user.role === '교수' && !hidden && (
+            <button onClick={() => updateDoc(doc(db, 'labs', labId, 'notices', n.id), { pinned: !n.pinned })}
+              style={{ padding: '3px 8px', border: '1px solid var(--border)', borderRadius: 6, background: n.pinned ? 'var(--red-light)' : 'var(--bg)', color: n.pinned ? 'var(--red)' : 'var(--text2)', fontSize: 11, cursor: 'pointer', fontWeight: 600 }}>
+              {n.pinned ? '📌 해제' : '📌 고정'}
+            </button>
+          )}
+          {/* 숨기기 / 복원 */}
+          {canAct && (
+            <button onClick={() => updateDoc(doc(db, 'labs', labId, 'notices', n.id), { hidden: !hidden, pinned: false })}
+              style={{ padding: '3px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg)', color: 'var(--text2)', fontSize: 11, cursor: 'pointer', fontWeight: 600 }}>
+              {hidden ? '↩ 복원' : '✓ 완료'}
+            </button>
+          )}
+          {/* 완전 삭제 — 교수만 */}
+          {user.role === '교수' && (
+            <button onClick={() => noticesHook.remove(n.id)}
+              style={{ padding: '3px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg)', color: 'var(--red)', fontSize: 11, cursor: 'pointer' }}>
+              🗑
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* 댓글 */}
+      {!hidden && (
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+          <NoticeComments labId={labId} noticeId={n.id} user={user} />
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ===== 잡무 섹션 =====
 function TaskSection({ labId, schedules, schedulesHook, members, user }) {
   const [showAdd, setShowAdd] = useState(false)
@@ -363,6 +419,7 @@ function CalendarSection({ labId, schedules, schedulesHook, notices, noticesHook
   const [filter, setFilter] = useState('all')
   const [showAdd, setShowAdd] = useState(false)
   const [newNotice, setNewNotice] = useState('')
+  const [showHidden, setShowHidden] = useState(false)
   const [form, setForm] = useState({ name: '', date: fmtDate(today), time: '10:00', type: 'lab', assignee: '전체' })
 
   const uniqueMembers = members.filter((m, i, arr) => arr.findIndex(x => x.id === m.id) === i)
@@ -381,8 +438,10 @@ function CalendarSection({ labId, schedules, schedulesHook, notices, noticesHook
     setForm({ name: '', date: selDate, time: '10:00', type: 'lab', assignee: '전체' })
   }
 
-  const pinnedNotices = notices.filter(n => n.pinned)
-  const normalNotices = notices.filter(n => !n.pinned)
+  const visibleNotices = notices.filter(n => !n.hidden)
+  const hiddenNotices = notices.filter(n => n.hidden)
+  const pinnedNotices = visibleNotices.filter(n => n.pinned)
+  const normalNotices = visibleNotices.filter(n => !n.pinned)
 
   return (
     <div>
@@ -445,40 +504,39 @@ function CalendarSection({ labId, schedules, schedulesHook, notices, noticesHook
       {/* 공지사항 */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 16px 8px' }}>
         <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: .6 }}>공지사항</span>
+        {hiddenNotices.length > 0 && (
+          <button onClick={() => setShowHidden(p => !p)} style={{
+            background: 'none', border: 'none', cursor: 'pointer',
+            fontSize: 11, color: 'var(--text2)', fontWeight: 600,
+            display: 'flex', alignItems: 'center', gap: 3
+          }}>
+            {showHidden ? '👁 숨김 닫기' : `🗂 숨긴 공지 ${hiddenNotices.length}개`}
+          </button>
+        )}
       </div>
 
-      {notices.length === 0 && (
+      {visibleNotices.length === 0 && !showHidden && (
         <div style={{ textAlign: 'center', padding: '12px', color: 'var(--text2)', fontSize: 13, margin: '0 16px', background: 'var(--card)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
           공지사항이 없습니다
         </div>
       )}
 
+      {/* 활성 공지 */}
       {[...pinnedNotices, ...normalNotices].map(n => (
-        <div key={n.id} className="notice-card" style={{ borderColor: n.pinned ? '#f8c5c5' : 'var(--border)' }}>
-          {n.pinned && <div style={{ fontSize: 11, color: 'var(--red)', fontWeight: 700, marginBottom: 4 }}>📌 고정</div>}
-          <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 8 }}>{n.body}</div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <div style={{ fontSize: 11, color: 'var(--text2)' }}>{n.author}</div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              {user.role === '교수' && (
-                <button onClick={() => updateDoc(doc(db, 'labs', labId, 'notices', n.id), { pinned: !n.pinned })}
-                  style={{ padding: '3px 8px', border: '1px solid var(--border)', borderRadius: 6, background: n.pinned ? 'var(--red-light)' : 'var(--bg)', color: n.pinned ? 'var(--red)' : 'var(--text2)', fontSize: 11, cursor: 'pointer', fontWeight: 600 }}>
-                  {n.pinned ? '📌 해제' : '📌 고정'}
-                </button>
-              )}
-              {(user.role === '교수' || n.author === user.name) && (
-                <button onClick={() => noticesHook.remove(n.id)}
-                  style={{ padding: '3px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg)', color: 'var(--text2)', fontSize: 11, cursor: 'pointer' }}>
-                  삭제
-                </button>
-              )}
-            </div>
-          </div>
-          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8 }}>
-            <NoticeComments labId={labId} noticeId={n.id} user={user} />
-          </div>
-        </div>
+        <NoticeCard key={n.id} n={n} labId={labId} user={user} noticesHook={noticesHook} hidden={false} />
       ))}
+
+      {/* 숨긴 공지 */}
+      {showHidden && hiddenNotices.length > 0 && (
+        <div style={{ margin: '4px 16px 0' }}>
+          <div style={{ fontSize: 11, color: 'var(--text2)', fontWeight: 600, marginBottom: 8, padding: '8px 0 4px', borderTop: '1px dashed var(--border)' }}>
+            🗂 숨긴 공지 — {hiddenNotices.length}개
+          </div>
+          {hiddenNotices.map(n => (
+            <NoticeCard key={n.id} n={n} labId={labId} user={user} noticesHook={noticesHook} hidden={true} />
+          ))}
+        </div>
+      )}
 
       {/* 공지 작성 — compact */}
       <div style={{ display: 'flex', gap: 8, padding: '8px 16px 24px' }}>
