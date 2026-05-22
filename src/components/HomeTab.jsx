@@ -1,9 +1,9 @@
 import React, { useState } from 'react'
 import { DAYS } from '../mockData'
-import { fmtDate } from '../utils'
+import { fmtDate, formatTime } from '../utils'
 import { useUserTodos } from '../hooks/useFirestore'
 
-export default function HomeTab({ user, schedules, supplies, notices, setActiveTab }) {
+export default function HomeTab({ user, schedules, supplies, notices, setActiveTab, timers = [] }) {
   const today = new Date()
   const todayStr = fmtDate(today)
   const todayScheds = schedules
@@ -225,6 +225,33 @@ export default function HomeTab({ user, schedules, supplies, notices, setActiveT
                 </div>
               )
             })}
+          </div>
+        </div>
+      )}
+
+      {/* ④-2 실행 중 타이머 */}
+      {timers.filter(t => t.running || t.done).length > 0 && (
+        <div style={{ margin: '16px 16px 0' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <span style={{ fontSize: 13, fontWeight: 700 }}>실행 중 타이머</span>
+            <button onClick={() => setActiveTab('timer')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--green)', fontWeight: 600, padding: 0 }}>전체 보기 ›</button>
+          </div>
+          <div style={{ display: 'flex', gap: 10, overflowX: 'auto', scrollbarWidth: 'none' }}>
+            {timers.filter(t => t.running || t.done).map(t => (
+              <div key={t.id} onClick={() => setActiveTab('timer')} style={{
+                flexShrink: 0, width: 130, background: 'var(--card)',
+                border: `1.5px solid ${t.done ? 'var(--red)' : 'var(--green)'}`,
+                borderRadius: 12, padding: '12px 14px', cursor: 'pointer'
+              }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: t.done ? 'var(--red)' : 'var(--green)', marginBottom: 4 }}>
+                  {t.done ? '✅ 완료' : '⏱ 실행중'}
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, lineHeight: 1.3 }}>{t.name}</div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: t.done ? 'var(--red)' : 'var(--green)' }}>
+                  {formatTime(t.timeLeft)}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
