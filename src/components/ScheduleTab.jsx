@@ -8,7 +8,7 @@ import { db } from '../firebase'
 // ===== 잡무 관리 섹션 =====
 function TaskSection({ labId, schedules, schedulesHook, members, user }) {
   const [showAdd, setShowAdd] = useState(false)
-  const [form, setForm] = useState({ name: '', repeat: 'weekly', note: '' })
+  const [form, setForm] = useState({ name: '', repeat: 'weekly', customDays: '', startDate: '', note: '' })
 
   // 잡무만 필터
   const tasks = schedules.filter(s => s.type === 'task')
@@ -30,17 +30,19 @@ function TaskSection({ labId, schedules, schedulesHook, members, user }) {
     if (!form.name.trim()) return
     const assignee = getNextAssignee()
     const today = fmtDate(new Date())
+    const repeatDays = form.repeat === 'custom' ? Number(form.customDays) : null
     await schedulesHook.add({
       name: form.name,
       type: 'task',
-      date: today,
+      date: form.startDate || today,
       time: '',
       assignee,
       repeat: form.repeat,
+      repeatDays,
       note: form.note,
     })
     setShowAdd(false)
-    setForm({ name: '', repeat: 'weekly', note: '' })
+    setForm({ name: '', repeat: 'weekly', customDays: '', startDate: '', note: '' })
   }
 
   const completeTask = async (task) => {
@@ -50,7 +52,9 @@ function TaskSection({ labId, schedules, schedulesHook, members, user }) {
     if (task.repeat !== 'none') {
       const nextDate = new Date(task.date || new Date())
       if (task.repeat === 'weekly') nextDate.setDate(nextDate.getDate() + 7)
+      if (task.repeat === 'biweekly') nextDate.setDate(nextDate.getDate() + 14)
       if (task.repeat === 'monthly') nextDate.setMonth(nextDate.getMonth() + 1)
+      if (task.repeat === 'custom' && task.repeatDays) nextDate.setDate(nextDate.getDate() + task.repeatDays)
       await schedulesHook.add({
         name: task.name,
         type: 'task',
@@ -64,7 +68,13 @@ function TaskSection({ labId, schedules, schedulesHook, members, user }) {
     await schedulesHook.remove(task.id)
   }
 
-  const REPEAT_LABEL = { weekly: '매주', monthly: '매월', none: '반복 없음' }
+  const repeatLabel = (task) => {
+    if (task.repeat === 'weekly') return '매주'
+    if (task.repeat === 'biweekly') return '격주'
+    if (task.repeat === 'monthly') return '매월'
+    if (task.repeat === 'custom') return `${task.repeatDays}일마다`
+    return '반복 없음'
+  }
 
   return (
     <div>
@@ -123,7 +133,7 @@ function TaskSection({ labId, schedules, schedulesHook, members, user }) {
                   👤 {task.assignee}
                 </span>
                 <span style={{ fontSize: 11, background: 'var(--green-light)', color: '#1a7a52', padding: '2px 8px', borderRadius: 10, fontWeight: 600 }}>
-                  🔁 {REPEAT_LABEL[task.repeat] || '반복 없음'}
+                  🔁 {repeatLabel(task)}
                 </span>
                 {task.date && (
                   <span style={{ fontSize: 11, background: '#F5F3EE', color: 'var(--text2)', padding: '2px 8px', borderRadius: 10 }}>
@@ -161,14 +171,35 @@ function TaskSection({ labId, schedules, schedulesHook, members, user }) {
                 placeholder="예: 실험실 청소, 약품 주문, 장비 점검" />
             </div>
             <div className="form-group">
+              <label className="form-label">시작 날짜 (선택)</label>
+              <input className="form-input" type="date" value={form.startDate}
+                onChange={e => setForm(p => ({ ...p, startDate: e.target.value }))} />
+            </div>
+            <div className="form-group">
               <label className="form-label">반복 주기</label>
-              <div style={{ display: 'flex', gap: 8 }}>
-                {[['weekly', '매주'], ['monthly', '매월'], ['none', '1회']].map(([v, l]) => (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                {[['weekly', '매주', '7일마다'], ['biweekly', '격주', '14일마다'], ['monthly', '매월', '한 달마다'], ['none', '1회', '반복 없음']].map(([v, l, sub]) => (
                   <button key={v} onClick={() => setForm(p => ({ ...p, repeat: v }))}
-                    style={{ flex: 1, padding: '10px 4px', border: `2px solid ${form.repeat === v ? 'var(--green)' : 'var(--border)'}`, borderRadius: 8, background: form.repeat === v ? 'var(--green-light)' : 'var(--card)', fontSize: 13, fontWeight: 600, cursor: 'pointer', color: form.repeat === v ? 'var(--green)' : 'var(--text2)' }}>
-                    {l}
+                    style={{ padding: '10px 8px', border: `2px solid ${form.repeat === v ? 'var(--green)' : 'var(--border)'}`, borderRadius: 10, background: form.repeat === v ? 'var(--green-light)' : 'var(--card)', cursor: 'pointer', textAlign: 'center' }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: form.repeat === v ? 'var(--green)' : 'var(--text)' }}>{l}</div>
+                    <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 2 }}>{sub}</div>
                   </button>
                 ))}
+              </div>
+              {/* 직접 입력 */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button onClick={() => setForm(p => ({ ...p, repeat: 'custom' }))}
+                  style={{ padding: '10px 14px', border: `2px solid ${form.repeat === 'custom' ? 'var(--green)' : 'var(--border)'}`, borderRadius: 10, background: form.repeat === 'custom' ? 'var(--green-light)' : 'var(--card)', cursor: 'pointer', fontSize: 13, fontWeight: 700, color: form.repeat === 'custom' ? 'var(--green)' : 'var(--text2)', whiteSpace: 'nowrap' }}>
+                  직접 입력
+                </button>
+                {form.repeat === 'custom' && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
+                    <input className="form-input" type="number" min="1" max="365"
+                      value={form.customDays} onChange={e => setForm(p => ({ ...p, customDays: e.target.value }))}
+                      placeholder="숫자 입력" style={{ flex: 1 }} />
+                    <span style={{ fontSize: 13, color: 'var(--text2)', whiteSpace: 'nowrap' }}>일마다</span>
+                  </div>
+                )}
               </div>
             </div>
             <div className="form-group">
