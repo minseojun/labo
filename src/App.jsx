@@ -10,6 +10,7 @@ import TimerTab from './components/TimerTab'
 import SuppliesTab from './components/SuppliesTab'
 import Sidebar from './components/Sidebar'
 import { useCollection, useMembers } from './hooks/useFirestore'
+import ToastContainer from './components/ToastContainer'
 import './App.css'
 
 const TABS = [
@@ -224,6 +225,7 @@ export default function App() {
           onClose={() => setShowSidebar(false)}
           onUserUpdate={updated => setUser(updated)} />
       )}
+      <ToastContainer />
     </div>
   )
 }

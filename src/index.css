@@ -43,3 +43,20 @@ body {
 .content-area::-webkit-scrollbar { display: none; }
 .filter-row { scrollbar-width: none; }
 .filter-row::-webkit-scrollbar { display: none; }
+
+/* Skeleton loading */
+@keyframes skeleton-pulse {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--border) 25%, var(--card) 50%, var(--border) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-pulse 1.4s infinite linear;
+  border-radius: 6px;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(12px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}

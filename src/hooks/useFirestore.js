@@ -4,6 +4,7 @@ import {
   doc, serverTimestamp, query, orderBy
 } from 'firebase/firestore'
 import { db } from '../firebase'
+import { toast } from '../utils/toast'
 
 export function useCollection(labId, collectionName, orderField = 'createdAt') {
   const [data, setData] = useState([])
@@ -21,22 +22,43 @@ export function useCollection(labId, collectionName, orderField = 'createdAt') {
     }, err => {
       console.error(err)
       setLoading(false)
+      toast.error('데이터를 불러오지 못했어요')
     })
     return unsub
   }, [labId, collectionName])
 
-  const add = (item) => addDoc(
-    collection(db, 'labs', labId, collectionName),
-    { ...item, createdAt: serverTimestamp() }
-  )
+  const add = async (item) => {
+    try {
+      return await addDoc(
+        collection(db, 'labs', labId, collectionName),
+        { ...item, createdAt: serverTimestamp() }
+      )
+    } catch (e) {
+      console.error(e)
+      toast.error('저장에 실패했어요. 다시 시도해주세요.')
+      throw e
+    }
+  }
 
-  const update = (id, item) => updateDoc(
-    doc(db, 'labs', labId, collectionName, id), item
-  )
+  const update = async (id, item) => {
+    try {
+      return await updateDoc(doc(db, 'labs', labId, collectionName, id), item)
+    } catch (e) {
+      console.error(e)
+      toast.error('수정에 실패했어요. 다시 시도해주세요.')
+      throw e
+    }
+  }
 
-  const remove = (id) => deleteDoc(
-    doc(db, 'labs', labId, collectionName, id)
-  )
+  const remove = async (id) => {
+    try {
+      return await deleteDoc(doc(db, 'labs', labId, collectionName, id))
+    } catch (e) {
+      console.error(e)
+      toast.error('삭제에 실패했어요. 다시 시도해주세요.')
+      throw e
+    }
+  }
 
   return { data, loading, add, update, remove }
 }
@@ -47,7 +69,7 @@ export function useMembers(labId) {
     if (!labId) return
     const unsub = onSnapshot(collection(db, 'labs', labId, 'members'), snap => {
       setMembers(snap.docs.map(d => ({ id: d.id, ...d.data() })))
-    })
+    }, err => console.error(err))
     return unsub
   }, [labId])
   return members
@@ -61,15 +83,41 @@ export function useUserTodos(userId) {
     const q = query(collection(db, 'users', userId, 'todos'), orderBy('createdAt', 'desc'))
     const unsub = onSnapshot(q, snap => {
       setTodos(snap.docs.map(d => ({ id: d.id, ...d.data() })))
-    })
+    }, err => console.error(err))
     return unsub
   }, [userId])
 
-  const add = (text) => addDoc(collection(db, 'users', userId, 'todos'), {
-    text, done: false, createdAt: serverTimestamp()
-  })
-  const toggle = (id, done) => updateDoc(doc(db, 'users', userId, 'todos', id), { done })
-  const remove = (id) => deleteDoc(doc(db, 'users', userId, 'todos', id))
+  const add = async (text) => {
+    try {
+      return await addDoc(collection(db, 'users', userId, 'todos'), {
+        text, done: false, createdAt: serverTimestamp()
+      })
+    } catch (e) {
+      console.error(e)
+      toast.error('할 일 추가에 실패했어요.')
+      throw e
+    }
+  }
+
+  const toggle = async (id, done) => {
+    try {
+      return await updateDoc(doc(db, 'users', userId, 'todos', id), { done })
+    } catch (e) {
+      console.error(e)
+      toast.error('상태 변경에 실패했어요.')
+      throw e
+    }
+  }
+
+  const remove = async (id) => {
+    try {
+      return await deleteDoc(doc(db, 'users', userId, 'todos', id))
+    } catch (e) {
+      console.error(e)
+      toast.error('삭제에 실패했어요.')
+      throw e
+    }
+  }
 
   return { todos, add, toggle, remove }
 }
