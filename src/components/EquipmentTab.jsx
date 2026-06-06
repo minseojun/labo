@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { updateDoc, doc, arrayUnion, addDoc, collection, onSnapshot, serverTimestamp, query, orderBy } from 'firebase/firestore'
 import { db } from '../firebase'
+import { toast } from '../utils/toast'
 import { useEffect } from 'react'
 
 function StatusChip({ status }) {
@@ -12,7 +13,19 @@ function StatusChip({ status }) {
 const ICONS = ['🔬', '⚙️', '💡', '🔧', '🧪', '🖥️', '📡', '⚗️']
 const bgColor = s => s === 'available' ? 'var(--green-light)' : s === 'in-use' ? 'var(--red-light)' : 'var(--yellow-light)'
 
-// 댓글 훅
+function SkeletonCard() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderBottom: '1px solid var(--border)' }}>
+      <div className="skeleton" style={{ width: 44, height: 44, borderRadius: 12, flexShrink: 0 }} />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div className="skeleton" style={{ height: 14, width: '60%' }} />
+        <div className="skeleton" style={{ height: 11, width: '40%' }} />
+      </div>
+      <div className="skeleton" style={{ width: 48, height: 22, borderRadius: 20 }} />
+    </div>
+  )
+}
+
 function useComments(labId, equipmentId) {
   const [comments, setComments] = useState([])
   useEffect(() => {
@@ -23,26 +36,31 @@ function useComments(labId, equipmentId) {
     )
     const unsub = onSnapshot(q, snap => {
       setComments(snap.docs.map(d => ({ id: d.id, ...d.data() })))
-    })
+    }, err => console.error(err))
     return unsub
   }, [labId, equipmentId])
   return comments
 }
 
-// 댓글 섹션
 function CommentSection({ labId, equipmentId, user }) {
   const comments = useComments(labId, equipmentId)
   const [text, setText] = useState('')
 
   const addComment = async () => {
-    if (!text.trim()) return
-    await addDoc(collection(db, 'labs', labId, 'equipment', equipmentId, 'comments'), {
-      author: user.name,
-      role: user.role,
-      text,
-      createdAt: serverTimestamp()
-    })
-    setText('')
+    const trimmed = text.trim()
+    if (!trimmed || trimmed.length > 500) return
+    try {
+      await addDoc(collection(db, 'labs', labId, 'equipment', equipmentId, 'comments'), {
+        author: user.name,
+        role: user.role,
+        text: trimmed,
+        createdAt: serverTimestamp()
+      })
+      setText('')
+    } catch (e) {
+      console.error(e)
+      toast.error('댓글 저장에 실패했어요.')
+    }
   }
 
   return (
@@ -71,17 +89,17 @@ function CommentSection({ labId, equipmentId, user }) {
               {c.createdAt?.toDate?.()?.toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) || ''}
             </span>
           </div>
-          <div style={{
-            background: 'var(--bg)', borderRadius: '0 10px 10px 10px',
-            padding: '8px 12px', fontSize: 13, marginLeft: 30
-          }}>{c.text}</div>
+          <div style={{ background: 'var(--bg)', borderRadius: '0 10px 10px 10px', padding: '8px 12px', fontSize: 13, marginLeft: 30 }}>
+            {c.text}
+          </div>
         </div>
       ))}
 
       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
         <input className="form-input" style={{ flex: 1, padding: '8px 10px', fontSize: 13 }}
           value={text} onChange={e => setText(e.target.value)}
-          placeholder="댓글 작성..." onKeyDown={e => e.key === 'Enter' && addComment()} />
+          placeholder="댓글 작성..." maxLength={500}
+          onKeyDown={e => e.key === 'Enter' && addComment()} />
         <button onClick={addComment}
           style={{ padding: '8px 14px', background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>
           전송
@@ -94,8 +112,8 @@ function CommentSection({ labId, equipmentId, user }) {
 export default function EquipmentTab({ labId, equipment, equipmentHook, user }) {
   const [sel, setSel] = useState(null)
   const [showAdd, setShowAdd] = useState(false)
-  const [showQR, setShowQR] = useState(false)
   const [scanning, setScanning] = useState(false)
+  const [showQR, setShowQR] = useState(false)
   const [memo, setMemo] = useState('')
   const [filter, setFilter] = useState('all')
   const [form, setForm] = useState({ name: '', code: '', status: 'available', icon: '🔬' })
@@ -111,20 +129,54 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
       time: new Date().toLocaleString('ko-KR'),
       memo: isUsing ? memo : ''
     }
-    await updateDoc(doc(db, 'labs', labId, 'equipment', eq.id), {
-      status: isUsing ? 'available' : 'in-use',
-      lastUser: user.name,
-      logs: arrayUnion(newLog)
-    })
-    setSel(p => p ? { ...p, status: isUsing ? 'available' : 'in-use', lastUser: user.name, logs: [newLog, ...(p.logs || [])] } : p)
-    if (isUsing) setMemo('')
+    try {
+      await updateDoc(doc(db, 'labs', labId, 'equipment', eq.id), {
+        status: isUsing ? 'available' : 'in-use',
+        lastUser: user.name,
+        logs: arrayUnion(newLog)
+      })
+      setSel(p => p ? { ...p, status: isUsing ? 'available' : 'in-use', lastUser: user.name, logs: [newLog, ...(p.logs || [])] } : p)
+      if (isUsing) setMemo('')
+    } catch (e) {
+      console.error(e)
+      toast.error('상태 변경에 실패했어요.')
+    }
   }
 
   const addEquipment = async () => {
-    if (!form.name || !form.code) return
-    await equipmentHook.add({ ...form, lastUser: '-', logs: [] })
-    setShowAdd(false)
-    setForm({ name: '', code: '', status: 'available', icon: '🔬' })
+    const name = form.name.trim()
+    const code = form.code.trim()
+    if (!name) { toast.error('장비 이름을 입력해주세요.'); return }
+    if (!code) { toast.error('장비 코드를 입력해주세요.'); return }
+    if (name.length > 100) { toast.error('이름은 100자 이내로 입력해주세요.'); return }
+    if (code.length > 30) { toast.error('코드는 30자 이내로 입력해주세요.'); return }
+    try {
+      await equipmentHook.add({ ...form, name, code, lastUser: '-', logs: [] })
+      setShowAdd(false)
+      setForm({ name: '', code: '', status: 'available', icon: '🔬' })
+    } catch (e) {
+      // error shown by hook
+    }
+  }
+
+  const deleteEquipment = async () => {
+    if (!window.confirm(`장비 "${sel.name}"을 삭제하시겠습니까?`)) return
+    try {
+      await equipmentHook.remove(sel.id)
+      setSel(null)
+    } catch (e) {
+      // error shown by hook
+    }
+  }
+
+  const setMaintenance = async (eq, status) => {
+    try {
+      await updateDoc(doc(db, 'labs', labId, 'equipment', eq.id), { status })
+      setSel(p => p ? { ...p, status } : p)
+    } catch (e) {
+      console.error(e)
+      toast.error('상태 변경에 실패했어요.')
+    }
   }
 
   return (
@@ -137,7 +189,6 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
               style={{ padding: '8px 12px', background: 'var(--card)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
               📷 QR
             </button>
-            {/* 교수만 장비 추가 가능 */}
             {isAdmin && (
               <button onClick={() => setShowAdd(true)}
                 style={{ padding: '8px 12px', background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
@@ -154,26 +205,29 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
         ))}
       </div>
 
-      {filtered.length === 0 && (
+      {equipmentHook.loading ? (
+        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', margin: '0 16px', overflow: 'hidden' }}>
+          {[1,2,3].map(i => <SkeletonCard key={i} />)}
+        </div>
+      ) : filtered.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text2)' }}>
           <div style={{ fontSize: 36, marginBottom: 12 }}>🔬</div>
           <div style={{ fontWeight: 500 }}>등록된 장비가 없습니다</div>
           {isAdmin && <div style={{ fontSize: 12, marginTop: 4 }}>+ 추가 버튼으로 장비를 등록하세요</div>}
         </div>
+      ) : (
+        filtered.map(eq => (
+          <div key={eq.id} className="equip-card" onClick={() => setSel(eq)}>
+            <div className="equip-icon" style={{ background: bgColor(eq.status) }}>{eq.icon || '🔬'}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 600, fontSize: 14 }}>{eq.name}</div>
+              <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>코드: {eq.code} · 최근: {eq.lastUser}</div>
+            </div>
+            <StatusChip status={eq.status} />
+          </div>
+        ))
       )}
 
-      {filtered.map(eq => (
-        <div key={eq.id} className="equip-card" onClick={() => setSel(eq)}>
-          <div className="equip-icon" style={{ background: bgColor(eq.status) }}>{eq.icon || '🔬'}</div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 600, fontSize: 14 }}>{eq.name}</div>
-            <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>코드: {eq.code} · 최근: {eq.lastUser}</div>
-          </div>
-          <StatusChip status={eq.status} />
-        </div>
-      ))}
-
-      {/* 장비 상세 시트 */}
       {sel && (
         <div className="sheet-backdrop" onClick={e => e.target === e.currentTarget && setSel(null)}>
           <div className="sheet">
@@ -193,7 +247,7 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
                   <div className="form-group">
                     <label className="form-label">실험 메모</label>
                     <textarea className="form-input" rows={2} value={memo} onChange={e => setMemo(e.target.value)}
-                      placeholder="실험 조건, 주의사항..." style={{ resize: 'none' }} />
+                      placeholder="실험 조건, 주의사항..." maxLength={500} style={{ resize: 'none' }} />
                   </div>
                 )}
                 <div className="timer-controls">
@@ -209,15 +263,22 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
               </>
             )}
 
-            {/* 교수만 점검 완료 / 삭제 가능 */}
-            {sel.status === 'maintenance' && isAdmin && (
-              <button className="timer-btn btn-play" style={{ marginBottom: 12 }}
-                onClick={() => { updateDoc(doc(db, 'labs', labId, 'equipment', sel.id), { status: 'available' }); setSel(p => ({ ...p, status: 'available' })) }}>
-                ✅ 점검 완료 처리
-              </button>
+            {isAdmin && (
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                {sel.status === 'maintenance' ? (
+                  <button className="timer-btn btn-play" style={{ flex: 1 }}
+                    onClick={() => setMaintenance(sel, 'available')}>
+                    ✅ 점검 완료 처리
+                  </button>
+                ) : (
+                  <button className="timer-btn" style={{ flex: 1, background: 'var(--yellow-light)', color: '#b97b10' }}
+                    onClick={() => setMaintenance(sel, 'maintenance')}>
+                    🔧 점검 중으로 변경
+                  </button>
+                )}
+              </div>
             )}
 
-            {/* 사용 이력 */}
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)', margin: '14px 0 8px', textTransform: 'uppercase', letterSpacing: .5 }}>사용 이력</div>
             {(!sel.logs || sel.logs.length === 0) ? (
               <div style={{ textAlign: 'center', padding: '10px 0', fontSize: 12, color: 'var(--text2)' }}>사용 이력이 없습니다</div>
@@ -232,13 +293,11 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
               </div>
             ))}
 
-            {/* 댓글 */}
             <CommentSection labId={labId} equipmentId={sel.id} user={user} />
 
-            {/* 교수만 장비 삭제 */}
             {isAdmin && (
               <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-                <button onClick={() => { equipmentHook.remove(sel.id); setSel(null) }}
+                <button onClick={deleteEquipment}
                   style={{ width: '100%', padding: 10, background: 'var(--red-light)', color: 'var(--red)', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer', fontSize: 13 }}>
                   장비 삭제
                 </button>
@@ -248,7 +307,6 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
         </div>
       )}
 
-      {/* QR 스캔 */}
       {scanning && (
         <div className="sheet-backdrop" onClick={e => e.target === e.currentTarget && setScanning(false)}>
           <div className="sheet">
@@ -269,7 +327,6 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
         </div>
       )}
 
-      {/* QR 출력 */}
       {showQR && sel && (
         <div className="sheet-backdrop" onClick={e => e.target === e.currentTarget && setShowQR(false)}>
           <div className="sheet">
@@ -293,7 +350,6 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
         </div>
       )}
 
-      {/* 장비 추가 (교수 전용) */}
       {showAdd && isAdmin && (
         <div className="sheet-backdrop" onClick={e => e.target === e.currentTarget && setShowAdd(false)}>
           <div className="sheet">
@@ -301,11 +357,15 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
             <div className="sheet-title">장비 추가</div>
             <div className="form-group">
               <label className="form-label">장비 이름</label>
-              <input className="form-input" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="예: 전자현미경 SEM" />
+              <input className="form-input" value={form.name} maxLength={100}
+                onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+                placeholder="예: 전자현미경 SEM" />
             </div>
             <div className="form-group">
               <label className="form-label">장비 코드</label>
-              <input className="form-input" value={form.code} onChange={e => setForm(p => ({ ...p, code: e.target.value.toUpperCase() }))} placeholder="예: SEM-001" />
+              <input className="form-input" value={form.code} maxLength={30}
+                onChange={e => setForm(p => ({ ...p, code: e.target.value.toUpperCase() }))}
+                placeholder="예: SEM-001" />
             </div>
             <div className="form-group">
               <label className="form-label">아이콘</label>

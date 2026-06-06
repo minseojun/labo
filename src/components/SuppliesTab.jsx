@@ -2,6 +2,19 @@ import React, { useState } from 'react'
 import { updateDoc, doc, arrayUnion } from 'firebase/firestore'
 import { db } from '../firebase'
 import { statusLabel, statusBg, statusColor } from '../utils'
+import { toast } from '../utils/toast'
+
+function SkeletonRow() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid var(--border)', gap: 12 }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div className="skeleton" style={{ height: 13, width: '50%' }} />
+        <div className="skeleton" style={{ height: 11, width: '30%' }} />
+      </div>
+      <div className="skeleton" style={{ width: 60, height: 24, borderRadius: 6 }} />
+    </div>
+  )
+}
 
 export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
   const [showAdd, setShowAdd] = useState(false)
@@ -9,24 +22,44 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
   const [sel, setSel] = useState(null)
 
   const isAdmin = user.role === '교수'
-  // 대학원생 이상만 상태 변경 가능
   const canEdit = user.role === '교수' || user.role === '대학원생'
 
   const changeStatus = async (id, newStatus, currentStatus) => {
     if (!canEdit) return
     const entry = { user: user.name, from: currentStatus, to: newStatus, time: new Date().toLocaleString('ko-KR') }
-    await updateDoc(doc(db, 'labs', labId, 'supplies', id), {
-      status: newStatus,
-      history: arrayUnion(entry)
-    })
-    setSel(p => p && p.id === id ? { ...p, status: newStatus, history: [entry, ...(p.history || [])] } : p)
+    try {
+      await updateDoc(doc(db, 'labs', labId, 'supplies', id), {
+        status: newStatus,
+        history: arrayUnion(entry)
+      })
+      setSel(p => p && p.id === id ? { ...p, status: newStatus, history: [entry, ...(p.history || [])] } : p)
+    } catch (e) {
+      console.error(e)
+      toast.error('상태 변경에 실패했어요.')
+    }
   }
 
   const addSupply = async () => {
-    if (!form.name) return
-    await suppliesHook.add({ ...form, history: [] })
-    setShowAdd(false)
-    setForm({ name: '', spec: '', status: 'green' })
+    const name = form.name.trim()
+    if (!name) { toast.error('품목 이름을 입력해주세요.'); return }
+    if (name.length > 100) { toast.error('이름은 100자 이내로 입력해주세요.'); return }
+    try {
+      await suppliesHook.add({ ...form, name, history: [] })
+      setShowAdd(false)
+      setForm({ name: '', spec: '', status: 'green' })
+    } catch (e) {
+      // error shown by hook
+    }
+  }
+
+  const deleteSupply = async () => {
+    if (!window.confirm(`소모품 "${sel.name}"을 삭제하시겠습니까?`)) return
+    try {
+      await suppliesHook.remove(sel.id)
+      setSel(null)
+    } catch (e) {
+      // error shown by hook
+    }
   }
 
   const green = supplies.filter(s => s.status === 'green').length
@@ -38,7 +71,6 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
       <div className="page-header">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div className="page-title">소모품 재고</div>
-          {/* 교수·대학원생만 추가 가능 */}
           {canEdit && (
             <button onClick={() => setShowAdd(true)}
               style={{ padding: '8px 14px', background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
@@ -69,7 +101,11 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
         </div>
       )}
 
-      {supplies.length === 0 ? (
+      {suppliesHook.loading ? (
+        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', margin: '0 16px 12px', overflow: 'hidden' }}>
+          {[1,2,3,4].map(i => <SkeletonRow key={i} />)}
+        </div>
+      ) : supplies.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text2)' }}>
           <div style={{ fontSize: 36, marginBottom: 12 }}>📦</div>
           <div style={{ fontWeight: 500 }}>등록된 소모품이 없습니다</div>
@@ -99,7 +135,6 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
         </div>
       )}
 
-      {/* 상세 시트 */}
       {sel && (
         <div className="sheet-backdrop" onClick={e => e.target === e.currentTarget && setSel(null)}>
           <div className="sheet">
@@ -128,13 +163,16 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
               <div style={{ textAlign: 'center', padding: '12px 0', fontSize: 12, color: 'var(--text2)' }}>변경 이력이 없습니다</div>
             ) : sel.history.map((h, i) => (
               <div key={i} className="log-item">
-                <div><span style={{ fontWeight: 500 }}>{h.user}</span><span style={{ color: 'var(--text2)', marginLeft: 6 }}>{statusLabel(h.from)} → {statusLabel(h.to)}</span></div>
+                <div>
+                  <span style={{ fontWeight: 500 }}>{h.user}</span>
+                  <span style={{ color: 'var(--text2)', marginLeft: 6 }}>{statusLabel(h.from)} → {statusLabel(h.to)}</span>
+                </div>
                 <div style={{ color: 'var(--text2)', fontSize: 11 }}>{h.time}</div>
               </div>
             ))}
             {isAdmin && (
               <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-                <button onClick={() => { suppliesHook.remove(sel.id); setSel(null) }}
+                <button onClick={deleteSupply}
                   style={{ width: '100%', padding: 10, background: 'var(--red-light)', color: 'var(--red)', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer', fontSize: 13 }}>
                   소모품 삭제
                 </button>
@@ -144,7 +182,6 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
         </div>
       )}
 
-      {/* 추가 시트 */}
       {showAdd && canEdit && (
         <div className="sheet-backdrop" onClick={e => e.target === e.currentTarget && setShowAdd(false)}>
           <div className="sheet">
@@ -152,11 +189,15 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
             <div className="sheet-title">소모품 추가</div>
             <div className="form-group">
               <label className="form-label">품목 이름</label>
-              <input className="form-input" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="예: 포토레지스트 PR-100" />
+              <input className="form-input" value={form.name} maxLength={100}
+                onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+                placeholder="예: 포토레지스트 PR-100" />
             </div>
             <div className="form-group">
               <label className="form-label">규격/단위</label>
-              <input className="form-input" value={form.spec} onChange={e => setForm(p => ({ ...p, spec: e.target.value }))} placeholder="예: 500ml, 10개입" />
+              <input className="form-input" value={form.spec} maxLength={100}
+                onChange={e => setForm(p => ({ ...p, spec: e.target.value }))}
+                placeholder="예: 500ml, 10개입" />
             </div>
             <div className="form-group">
               <label className="form-label">초기 상태</label>
