@@ -52,7 +52,7 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate 
   return (
     <>
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 300 }} />
-      <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: '82%', maxWidth: 320, background: 'var(--card)', zIndex: 301, display: 'flex', flexDirection: 'column', animation: 'slideInRight .25s ease', boxShadow: '-4px 0 24px rgba(0,0,0,0.12)' }}>
+      <div style={{ position: 'fixed', top: 0, right: 'max(0px, calc((100vw - 480px) / 2))', bottom: 0, width: 'min(82%, 320px)', background: 'var(--card)', zIndex: 301, display: 'flex', flexDirection: 'column', animation: 'slideInRight .25s ease', boxShadow: '-4px 0 24px rgba(0,0,0,0.12)' }}>
 
         {/* 헤더 */}
         <div style={{ padding: '48px 20px 20px', background: 'var(--green)', color: '#fff', position: 'relative' }}>
