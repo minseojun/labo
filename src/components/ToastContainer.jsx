@@ -24,7 +24,7 @@ export default function ToastContainer() {
           background: item.type === 'error' ? '#c23b3b' : item.type === 'success' ? '#2D9B6F' : '#1A1A1A',
           color: '#fff', padding: '10px 20px', borderRadius: 24,
           fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap',
-          boxShadow: '0 4px 16px rgba(0,0,0,.25)', animation: 'slideUp .2s ease'
+          boxShadow: '0 4px 16px rgba(0,0,0,.25)', animation: 'toastIn .2s ease'
         }}>
           {item.message}
         </div>
