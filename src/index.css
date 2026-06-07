@@ -56,7 +56,7 @@ body {
   border-radius: 6px;
 }
 
-@keyframes slideUp
+@keyframes toastIn {
   from { transform: translateY(12px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
 }
