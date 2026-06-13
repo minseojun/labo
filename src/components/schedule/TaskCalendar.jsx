@@ -36,18 +36,22 @@ export default function TaskCalendar({ tasks, members, onSelectDate, selectedDat
   while (cells.length % 7 !== 0) cells.push(null)
 
   return (
-    <div style={{ margin: '0 16px 16px' }}>
+    <div style={{ margin: '0 16px 18px', background: 'var(--card)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-sm)', padding: '14px 14px 12px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <button onClick={() => { const d = new Date(baseDate); d.setMonth(d.getMonth() - 1); setBaseDate(d) }}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--text2)', padding: '4px 8px' }}>‹</button>
-        <span style={{ fontWeight: 700, fontSize: 15 }}>{year}년 {month + 1}월</span>
-        <button onClick={() => { const d = new Date(baseDate); d.setMonth(d.getMonth() + 1); setBaseDate(d) }}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--text2)', padding: '4px 8px' }}>›</button>
+        <span style={{ fontWeight: 700, fontSize: 15, letterSpacing: '-.3px' }}>{year}년 {month + 1}월</span>
+        <div style={{ display: 'flex', gap: 2 }}>
+          <button onClick={() => { const d = new Date(baseDate); d.setMonth(d.getMonth() - 1); setBaseDate(d) }}
+            style={{ background: 'var(--bg)', border: 'none', cursor: 'pointer', fontSize: 16, color: 'var(--text2)', width: 30, height: 30, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>‹</button>
+          <button onClick={() => setBaseDate(new Date())}
+            style={{ background: 'var(--bg)', border: 'none', cursor: 'pointer', fontSize: 11.5, fontWeight: 600, color: 'var(--text2)', padding: '0 11px', height: 30, borderRadius: 9 }}>오늘</button>
+          <button onClick={() => { const d = new Date(baseDate); d.setMonth(d.getMonth() + 1); setBaseDate(d) }}
+            style={{ background: 'var(--bg)', border: 'none', cursor: 'pointer', fontSize: 16, color: 'var(--text2)', width: 30, height: 30, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>›</button>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', marginBottom: 4 }}>
-        {DAYS.map(d => (
-          <div key={d} style={{ textAlign: 'center', fontSize: 10, color: 'var(--text2)', fontWeight: 600, padding: '4px 0' }}>{d}</div>
+        {DAYS.map((d, i) => (
+          <div key={d} style={{ textAlign: 'center', fontSize: 11, fontWeight: 600, padding: '4px 0', color: i === 0 ? 'var(--red)' : i === 6 ? '#5B9BD5' : 'var(--text2)' }}>{d}</div>
         ))}
       </div>
 
@@ -57,45 +61,37 @@ export default function TaskCalendar({ tasks, members, onSelectDate, selectedDat
           const ds = fmtDate(new Date(year, month, day))
           const isToday = ds === fmtDate(today)
           const isSel = ds === selectedDate
+          const dow = (firstDay + day - 1) % 7
           const dots = tasksByDate[ds] || []
           const shownDots = dots.slice(0, 3)
+          const numColor = isToday ? '#fff' : isSel ? 'var(--green)' : dow === 0 ? 'var(--red)' : dow === 6 ? '#5B9BD5' : 'var(--text)'
           return (
             <div key={i} onClick={() => onSelectDate(ds)} style={{
-              padding: '6px 2px 4px', borderRadius: 8, cursor: 'pointer',
-              background: isSel ? 'var(--green-light)' : isToday ? 'var(--card)' : 'transparent',
-              border: isToday ? '1.5px solid var(--green)' : isSel ? '1.5px solid var(--green)' : '1.5px solid transparent',
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, minHeight: 48
+              padding: '5px 2px 4px', borderRadius: 10, cursor: 'pointer',
+              background: isSel && !isToday ? 'var(--green-light)' : 'transparent',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, minHeight: 46,
+              transition: 'background .15s'
             }}>
               <div style={{
-                width: 24, height: 24, borderRadius: '50%',
+                width: 26, height: 26, borderRadius: '50%',
                 background: isToday ? 'var(--green)' : 'transparent',
-                color: isToday ? '#fff' : 'var(--text)',
+                color: numColor,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 12, fontWeight: isToday ? 700 : 400
+                fontSize: 12.5, fontWeight: isToday || isSel ? 700 : 500,
+                boxShadow: isToday ? 'var(--shadow-green)' : 'none'
               }}>{day}</div>
               {shownDots.length > 0 && (
-                <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap', justifyContent: 'center' }}>
+                <div style={{ display: 'flex', gap: 2.5, alignItems: 'center', justifyContent: 'center' }}>
                   {shownDots.map((dot, j) => (
-                    <div key={j} style={{ width: 6, height: 6, borderRadius: '50%', background: dot.color, flexShrink: 0 }} />
+                    <div key={j} style={{ width: 5, height: 5, borderRadius: '50%', background: dot.color, flexShrink: 0 }} />
                   ))}
-                  {dots.length > 3 && <div style={{ fontSize: 8, color: 'var(--text2)', lineHeight: '6px' }}>+{dots.length - 3}</div>}
+                  {dots.length > 3 && <div style={{ fontSize: 8, color: 'var(--text2)', fontWeight: 600 }}>+{dots.length - 3}</div>}
                 </div>
               )}
             </div>
           )
         })}
       </div>
-
-      {members.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12, padding: '10px 12px', background: 'var(--card)', borderRadius: 10, border: '1px solid var(--border)' }}>
-          {members.map(m => (
-            <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <div style={{ width: 8, height: 8, borderRadius: '50%', background: colorMap[m.name] || '#999', flexShrink: 0 }} />
-              <span style={{ fontSize: 11, color: 'var(--text2)' }}>{m.name}</span>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   )
 }

@@ -11,6 +11,37 @@ function repeatLabel(task) {
   return '1회'
 }
 
+const initial = name => name?.trim().slice(-1) || '?'
+
+// 구성원별 잡무 분담 현황 — 공정한 분배를 한눈에
+function WorkloadPanel({ rows, total, nextAssignee }) {
+  const max = Math.max(1, ...rows.map(r => r.count))
+  return (
+    <div className="wl-card">
+      <div className="wl-top">
+        <span className="wl-title">잡무 분담 현황</span>
+        <span className="wl-meta">담당 잡무 {total}개</span>
+      </div>
+      {rows.map(m => (
+        <div className="wl-row" key={m.id}>
+          <span className="wl-dot" style={{ background: memberColor(m.name) }} />
+          <span className="wl-name">{m.name}</span>
+          <div className="wl-track">
+            <div className="wl-fill" style={{ width: `${(m.count / max) * 100}%`, background: memberColor(m.name) }} />
+          </div>
+          <span className="wl-count">{m.count}</span>
+        </div>
+      ))}
+      {nextAssignee && (
+        <div className="wl-next">
+          <span>자동 배정 시 다음 담당</span>
+          <b>{nextAssignee}</b>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function TaskSection({ labId, tasks, schedulesHook, members, user }) {
   const [showAdd, setShowAdd] = useState(false)
   const [selectedDate, setSelectedDate] = useState(fmtDate(new Date()))
@@ -24,12 +55,18 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
 
   const getNextAssignee = () => memberCounts.length > 0 ? memberCounts[0].name : user.name
 
+  // 분담 현황은 부담 큰 순으로 보여줘서 불균형이 바로 보이게
+  const workloadRows = [...memberCounts].sort((a, b) => b.count - a.count)
+
   const tasksOnDate = useMemo(() => {
     return tasks.filter(task => {
       const dates = generateTaskDates(task.startDate || task.date, task.repeat, task.repeatDays)
       return dates.includes(selectedDate)
     })
   }, [tasks, selectedDate])
+
+  const isToday = selectedDate === fmtDate(new Date())
+  const dateLabel = isToday ? '오늘' : selectedDate.replace(/^\d{4}-/, '').replace('-', '. ')
 
   const addTask = async () => {
     const name = form.name.trim()
@@ -49,7 +86,7 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
       })
       setShowAdd(false)
       setForm({ name: '', repeat: 'weekly', customDays: '', startDate: fmtDate(new Date()), note: '', assignee: 'auto' })
-      toast.success(`✅ ${assignee}에게 배정됐어요`)
+      toast.success(`${assignee} 담당으로 배정됐어요`)
     } catch (e) {
       // error shown by hook
     }
@@ -66,70 +103,69 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
   }
 
   return (
-    <div>
+    <div style={{ paddingBottom: 8 }}>
+      {uniqueMembers.length > 0 && tasks.length > 0 && (
+        <WorkloadPanel rows={workloadRows} total={tasks.length} nextAssignee={getNextAssignee()} />
+      )}
+
       <TaskCalendar
         tasks={tasks} members={uniqueMembers}
         onSelectDate={setSelectedDate} selectedDate={selectedDate}
       />
 
-      <div style={{ padding: '0 16px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+      <div className="tsk-section">
+        <div className="tsk-head">
           <div>
-            <span style={{ fontSize: 13, fontWeight: 700 }}>
-              {selectedDate === fmtDate(new Date()) ? '오늘' : selectedDate} 잡무
-            </span>
-            {tasksOnDate.length > 0 && <span style={{ fontSize: 11, color: 'var(--text2)', marginLeft: 6 }}>{tasksOnDate.length}개</span>}
+            <div className="tsk-h">{dateLabel} 잡무</div>
+            <div className="tsk-sub">
+              {tasksOnDate.length > 0 ? `${tasksOnDate.length}개 예정` : '예정된 잡무 없음'}
+            </div>
           </div>
-          <button onClick={() => setShowAdd(true)} style={{ padding: '7px 14px', background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-            + 잡무 추가
-          </button>
+          <button className="tsk-add" onClick={() => setShowAdd(true)}>＋ 잡무 추가</button>
         </div>
 
         {tasksOnDate.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text2)', fontSize: 13, background: 'var(--card)', borderRadius: 12, border: '1px solid var(--border)' }}>
-            <div style={{ fontSize: 28, marginBottom: 6 }}>🧹</div>
-            이 날 잡무가 없어요
+          <div className="tsk-empty">
+            <div className="tsk-empty-emoji">🧹</div>
+            <div className="tsk-empty-text">이 날은 배정된 잡무가 없어요</div>
           </div>
-        ) : tasksOnDate.map(task => (
-          <div key={task.id} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, marginBottom: 10, overflow: 'hidden', borderLeft: `4px solid ${memberColor(task.assignee)}` }}>
-            <div style={{ padding: '12px 14px' }}>
-              <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 8 }}>{task.name}</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                <span style={{ fontSize: 11, padding: '3px 9px', borderRadius: 20, fontWeight: 600, background: `${memberColor(task.assignee)}20`, color: memberColor(task.assignee) }}>
-                  👤 {task.assignee}
-                </span>
-                <span style={{ fontSize: 11, background: 'var(--green-light)', color: '#1a7a52', padding: '3px 9px', borderRadius: 20, fontWeight: 600 }}>
-                  🔁 {repeatLabel(task)}
-                </span>
+        ) : tasksOnDate.map(task => {
+          const color = memberColor(task.assignee)
+          return (
+            <div key={task.id} className="tsk-card" style={{ '--accent': color }}>
+              <div className="tsk-avatar" style={{ background: `${color}1A`, color }}>{initial(task.assignee)}</div>
+              <div className="tsk-body">
+                <div className="tsk-name">{task.name}</div>
+                <div className="tsk-metarow">
+                  <span className="tsk-strong" style={{ color }}>{task.assignee}</span>
+                  <span className="tsk-sep" />
+                  <span>{repeatLabel(task)}</span>
+                </div>
+                {task.note && <div className="tsk-note">{task.note}</div>}
               </div>
-              {task.note && <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 8, padding: '6px 10px', background: 'var(--bg)', borderRadius: 6 }}>{task.note}</div>}
+              <button className="tsk-del" onClick={() => deleteTask(task)} aria-label="삭제">✕</button>
             </div>
-            <div style={{ display: 'flex', borderTop: '1px solid var(--border)' }}>
-              <button onClick={() => deleteTask(task)}
-                style={{ flex: 1, padding: '9px', background: 'none', border: 'none', color: 'var(--text2)', fontSize: 12, cursor: 'pointer' }}>
-                🗑 삭제
-              </button>
-            </div>
-          </div>
-        ))}
+          )
+        })}
 
         {tasks.length > 0 && (
           <>
-            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: .6, margin: '20px 0 10px' }}>
-              전체 잡무 {tasks.length}개
-            </div>
-            {tasks.map(task => (
-              <div key={task.id} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10, marginBottom: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10, borderLeft: `3px solid ${memberColor(task.assignee)}` }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600 }}>{task.name}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>
-                    {task.assignee} · {repeatLabel(task)} · {task.startDate}부터
+            <div className="tsk-all-label">전체 잡무 {tasks.length}개</div>
+            {tasks.map(task => {
+              const color = memberColor(task.assignee)
+              return (
+                <div key={task.id} className="tsk-row">
+                  <span className="tsk-row-bar" style={{ background: color }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="tsk-row-name">{task.name}</div>
+                    <div className="tsk-row-meta">
+                      {task.assignee} · {repeatLabel(task)} · {task.startDate}부터
+                    </div>
                   </div>
+                  <button className="tsk-del" onClick={() => deleteTask(task)} aria-label="삭제">✕</button>
                 </div>
-                <button onClick={() => deleteTask(task)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text2)', fontSize: 16 }}>×</button>
-              </div>
-            ))}
+              )
+            })}
           </>
         )}
       </div>
@@ -152,16 +188,18 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
             </div>
             <div className="form-group">
               <label className="form-label">반복 주기</label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-                {[['weekly','매주','7일'], ['biweekly','격주','14일'], ['monthly','매월','30일'], ['none','1회','반복 없음']].map(([v,l,sub]) => (
-                  <button key={v} onClick={() => setForm(p => ({ ...p, repeat: v }))} style={{ padding: '10px 8px', border: `2px solid ${form.repeat === v ? 'var(--green)' : 'var(--border)'}`, borderRadius: 10, background: form.repeat === v ? 'var(--green-light)' : 'var(--card)', cursor: 'pointer', textAlign: 'center' }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: form.repeat === v ? 'var(--green)' : 'var(--text)' }}>{l}</div>
-                    <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 2 }}>{sub}</div>
+              <div className="opt-grid" style={{ marginBottom: 8 }}>
+                {[['weekly','매주','7일 간격'], ['biweekly','격주','14일 간격'], ['monthly','매월','30일 간격'], ['none','1회','반복 없음']].map(([v,l,sub]) => (
+                  <button key={v} className={`opt-card${form.repeat === v ? ' on' : ''}`} onClick={() => setForm(p => ({ ...p, repeat: v }))}>
+                    <div className="opt-card-t" style={{ color: form.repeat === v ? 'var(--green)' : 'var(--text)' }}>{l}</div>
+                    <div className="opt-card-s">{sub}</div>
                   </button>
                 ))}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <button onClick={() => setForm(p => ({ ...p, repeat: 'custom' }))} style={{ padding: '10px 14px', border: `2px solid ${form.repeat === 'custom' ? 'var(--green)' : 'var(--border)'}`, borderRadius: 10, background: form.repeat === 'custom' ? 'var(--green-light)' : 'var(--card)', cursor: 'pointer', fontSize: 13, fontWeight: 700, color: form.repeat === 'custom' ? 'var(--green)' : 'var(--text2)', whiteSpace: 'nowrap' }}>직접 입력</button>
+                <button className={`opt-pill${form.repeat === 'custom' ? ' on' : ''}`}
+                  style={{ whiteSpace: 'nowrap', borderColor: form.repeat === 'custom' ? 'var(--green)' : 'var(--border)', background: form.repeat === 'custom' ? 'var(--green-light)' : 'var(--card)', color: form.repeat === 'custom' ? 'var(--green)' : 'var(--text2)' }}
+                  onClick={() => setForm(p => ({ ...p, repeat: 'custom' }))}>직접 입력</button>
                 {form.repeat === 'custom' && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
                     <input className="form-input" type="number" min="1" max="365" value={form.customDays}
@@ -175,11 +213,15 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
             <div className="form-group">
               <label className="form-label">담당자</label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                <button onClick={() => setForm(p => ({ ...p, assignee: 'auto' }))} style={{ padding: '8px 14px', border: `2px solid ${form.assignee === 'auto' ? 'var(--green)' : 'var(--border)'}`, borderRadius: 20, background: form.assignee === 'auto' ? 'var(--green-light)' : 'var(--card)', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: form.assignee === 'auto' ? 'var(--green)' : 'var(--text2)' }}>
-                  🔄 자동 배정 ({getNextAssignee()})
+                <button className="opt-pill"
+                  style={{ borderRadius: 20, borderColor: form.assignee === 'auto' ? 'var(--green)' : 'var(--border)', background: form.assignee === 'auto' ? 'var(--green-light)' : 'var(--card)', color: form.assignee === 'auto' ? 'var(--green)' : 'var(--text2)' }}
+                  onClick={() => setForm(p => ({ ...p, assignee: 'auto' }))}>
+                  자동 배정 · {getNextAssignee()}
                 </button>
                 {uniqueMembers.map(m => (
-                  <button key={m.id} onClick={() => setForm(p => ({ ...p, assignee: m.name }))} style={{ padding: '8px 14px', border: `2px solid ${form.assignee === m.name ? memberColor(m.name) : 'var(--border)'}`, borderRadius: 20, background: form.assignee === m.name ? `${memberColor(m.name)}20` : 'var(--card)', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: form.assignee === m.name ? memberColor(m.name) : 'var(--text2)' }}>
+                  <button key={m.id} className="opt-pill"
+                    style={{ borderRadius: 20, borderColor: form.assignee === m.name ? memberColor(m.name) : 'var(--border)', background: form.assignee === m.name ? `${memberColor(m.name)}1A` : 'var(--card)', color: form.assignee === m.name ? memberColor(m.name) : 'var(--text2)' }}
+                    onClick={() => setForm(p => ({ ...p, assignee: m.name }))}>
                     {m.name}
                   </button>
                 ))}
