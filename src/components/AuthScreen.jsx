@@ -41,7 +41,11 @@ export default function AuthScreen({ onLogin }) {
       if (!userDoc.exists()) { setError('사용자 정보가 없습니다.'); setLoading(false); return }
       onLogin({ id: cred.user.uid, ...userDoc.data() })
     } catch (e) {
-      setError('이메일 또는 비밀번호가 올바르지 않습니다.')
+      if (e.code === 'auth/wrong-password' || e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential') {
+        setError('이메일 또는 비밀번호가 올바르지 않습니다.')
+      } else {
+        setError('로그인 오류: ' + e.message)
+      }
     }
     setLoading(false)
   }
@@ -52,13 +56,19 @@ export default function AuthScreen({ onLogin }) {
 
     try {
       if (mode === 'join') {
-        const labsQ = query(collection(db, 'labs'), where('code', '==', code.toUpperCase()))
-        const labsSnap = await getDocs(labsQ)
-        if (labsSnap.empty) { setError('존재하지 않는 초대코드입니다.'); setLoading(false); return }
-        const labDoc = labsSnap.docs[0]
-
+        // 계정 먼저 생성 (Firestore 조회에 인증 필요)
         const cred = await createUserWithEmailAndPassword(auth, email, pw)
         await updateProfile(cred.user, { displayName: name })
+
+        // 인증된 상태에서 초대코드 조회
+        const labsQ = query(collection(db, 'labs'), where('code', '==', code.toUpperCase()))
+        const labsSnap = await getDocs(labsQ)
+        if (labsSnap.empty) {
+          // 초대코드 없으면 방금 만든 계정 삭제 후 에러
+          await cred.user.delete()
+          setError('존재하지 않는 초대코드입니다.'); setLoading(false); return
+        }
+        const labDoc = labsSnap.docs[0]
 
         const userData = { name, email, role, labId: labDoc.id, createdAt: serverTimestamp() }
         await setDoc(doc(db, 'users', cred.user.uid), userData)

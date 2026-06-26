@@ -29,8 +29,8 @@ service cloud.firestore {
         return isMember() && memberRole() in ['대학원생', '교수'];
       }
 
-      // 연구실 기본 정보: 멤버만 읽기, 교수만 수정, 누구나 생성(신규 연구실)
-      allow read: if isMember();
+      // 연구실 기본 정보: 인증된 사용자 읽기(가입시 초대코드 조회 필요), 교수만 수정, 누구나 생성(신규 연구실)
+      allow read: if request.auth != null;
       allow create: if request.auth != null;
       allow update: if isProfessor();
       allow delete: if isProfessor();
