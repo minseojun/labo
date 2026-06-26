@@ -116,25 +116,44 @@ export default function App() {
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid))
-        if (userDoc.exists()) {
-          const userData = { id: firebaseUser.uid, ...userDoc.data() }
-          setUser(userData)
-          if (userData.labId) {
-            const labDoc = await getDoc(doc(db, 'labs', userData.labId))
-            if (labDoc.exists()) setLabInfo({ id: labDoc.id, ...labDoc.data() })
+      try {
+        if (firebaseUser) {
+          const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid))
+          if (userDoc.exists()) {
+            const userData = { id: firebaseUser.uid, ...userDoc.data() }
+            setUser(userData)
+            if (userData.labId) {
+              try {
+                const labDoc = await getDoc(doc(db, 'labs', userData.labId))
+                if (labDoc.exists()) setLabInfo({ id: labDoc.id, ...labDoc.data() })
+              } catch (labErr) {
+                console.error('연구실 정보 로드 실패:', labErr)
+              }
+            }
+          } else {
+            setUser(null)
           }
         } else {
           setUser(null)
         }
-      } else {
+      } catch (e) {
+        console.error('인증 상태 처리 오류:', e)
         setUser(null)
+      } finally {
+        setAuthLoading(false)
       }
-      setAuthLoading(false)
     })
     return unsub
   }, [])
+
+  // onAuthStateChanged가 signup 중 타이밍 이슈로 labInfo를 못 채운 경우 보완
+  useEffect(() => {
+    if (user?.labId && !labInfo) {
+      getDoc(doc(db, 'labs', user.labId)).then(labDoc => {
+        if (labDoc.exists()) setLabInfo({ id: labDoc.id, ...labDoc.data() })
+      }).catch(e => console.error('연구실 정보 로드 실패:', e))
+    }
+  }, [user?.labId])
 
   const labId = user?.labId
   const schedulesHook = useCollection(labId, 'schedules', 'date')
