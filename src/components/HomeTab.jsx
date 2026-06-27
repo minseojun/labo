@@ -15,6 +15,14 @@ export default function HomeTab({ user, schedules, supplies, notices, setActiveT
 
   // 오늘 일정 (잡무 포함) — 시간 있는 것 먼저, 없는 것 뒤
   // 잡무는 반복 주기로 오늘 해당 여부를 계산해야 함
+  const myTodayCount = schedules.filter(s => {
+    if (s.type === 'task') {
+      const dates = generateTaskDates(s.startDate || s.date, s.repeat, s.repeatDays)
+      return dates.includes(todayStr) && s.assignee === user.name
+    }
+    return s.date === todayStr && (s.type === 'lab' || s.assignee === user.name)
+  }).length
+
   const todayItems = schedules
     .filter(s => {
       if (s.type === 'task') {
@@ -128,8 +136,8 @@ export default function HomeTab({ user, schedules, supplies, notices, setActiveT
       <div style={{ display: 'flex', gap: 10, padding: '16px 16px 0', overflowX: 'auto', scrollbarWidth: 'none' }}>
         {[
           {
-            icon: '📅', label: '오늘 일정', value: todayItems.length,
-            sub: todayItems.length > 0 ? (todayItems[0].time ? `${todayItems[0].time} 시작` : todayItems[0].name?.slice(0, 6)) : '없음',
+            icon: '📅', label: '오늘 일정', value: myTodayCount,
+            sub: myTodayCount > 0 ? (todayItems[0].time ? `${todayItems[0].time} 시작` : todayItems[0].name?.slice(0, 6)) : '없음',
             color: 'var(--green)', tab: 'schedule',
           },
           {

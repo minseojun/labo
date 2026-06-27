@@ -8,7 +8,7 @@ export default function CalendarSection({ labId, schedules, schedulesHook, notic
   const today = new Date()
   const [baseDate, setBaseDate] = useState(today)
   const [selDate, setSelDate] = useState(fmtDate(today))
-  const [filter, setFilter] = useState('all')
+
   const [showAdd, setShowAdd] = useState(false)
   const [showEdit, setShowEdit] = useState(null)
   const [newNotice, setNewNotice] = useState('')
@@ -18,11 +18,9 @@ export default function CalendarSection({ labId, schedules, schedulesHook, notic
   const uniqueMembers = members.filter((m, i, arr) => arr.findIndex(x => x.id === m.id) === i)
   const weekDates = getWeekDates(baseDate)
   const nonTaskSchedules = schedules.filter(s => s.type !== 'task')
-  const filtered = nonTaskSchedules.filter(s => {
-    if (s.date !== selDate) return false
-    if (filter === 'mine') return s.assignee === user.name || s.type === 'lab'
-    return true
-  }).sort((a, b) => (a.time || '').localeCompare(b.time || ''))
+  const filtered = nonTaskSchedules
+    .filter(s => s.date === selDate)
+    .sort((a, b) => (a.time || '').localeCompare(b.time || ''))
 
   const addSchedule = async () => {
     const name = form.name.trim()
@@ -103,12 +101,6 @@ export default function CalendarSection({ labId, schedules, schedulesHook, notic
             </div>
           )
         })}
-      </div>
-
-      <div className="filter-row">
-        {[['all', '전체'], ['mine', '내 일정']].map(([v, l]) => (
-          <div key={v} className={`filter-chip${filter === v ? ' active' : ''}`} onClick={() => setFilter(v)}>{l}</div>
-        ))}
       </div>
 
       {filtered.length === 0 ? (
