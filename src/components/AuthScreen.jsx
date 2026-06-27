@@ -56,15 +56,12 @@ export default function AuthScreen({ onLogin }) {
 
     try {
       if (mode === 'join') {
-        // 계정 먼저 생성 (Firestore 조회에 인증 필요)
         const cred = await createUserWithEmailAndPassword(auth, email, pw)
         await updateProfile(cred.user, { displayName: name })
 
-        // 인증된 상태에서 초대코드 조회
         const labsQ = query(collection(db, 'labs'), where('code', '==', code.toUpperCase()))
         const labsSnap = await getDocs(labsQ)
         if (labsSnap.empty) {
-          // 초대코드 없으면 방금 만든 계정 삭제 후 에러
           await cred.user.delete()
           setError('존재하지 않는 초대코드입니다.'); setLoading(false); return
         }
@@ -84,15 +81,10 @@ export default function AuthScreen({ onLogin }) {
         await updateProfile(cred.user, { displayName: name })
 
         const labRef = doc(collection(db, 'labs'))
-        await setDoc(labRef, {
-          name: labName, code: newCode,
-          profName: name, createdAt: serverTimestamp()
-        })
+        await setDoc(labRef, { name: labName, code: newCode, profName: name, createdAt: serverTimestamp() })
         const userData = { name, email, role: '교수', labId: labRef.id, createdAt: serverTimestamp() }
         await setDoc(doc(db, 'users', cred.user.uid), userData)
-        await setDoc(doc(db, 'labs', labRef.id, 'members', cred.user.uid), {
-          name, role: '교수', joinedAt: serverTimestamp()
-        })
+        await setDoc(doc(db, 'labs', labRef.id, 'members', cred.user.uid), { name, role: '교수', joinedAt: serverTimestamp() })
         alert(`연구실 생성 완료!\n초대코드: ${newCode}\n구성원들에게 공유하세요.`)
         onLogin({ id: cred.user.uid, ...userData })
       }
@@ -122,17 +114,37 @@ export default function AuthScreen({ onLogin }) {
 
   return (
     <div className="auth-screen">
-      <div className="auth-logo">LABO</div>
-      <div className="auth-tagline">연구실 올인원 운영 플랫폼</div>
+      {/* 그린 히어로 영역 */}
+      <div className="auth-hero">
+        <div className="auth-hero-deco" style={{ width: 220, height: 220, top: -80, right: -60 }} />
+        <div className="auth-hero-deco" style={{ width: 100, height: 100, top: 30, right: 60, opacity: .5 }} />
+        <div className="auth-hero-deco" style={{ width: 60, height: 60, bottom: -10, left: 40, opacity: .4 }} />
+        <div className="auth-logo">LABO</div>
+        <div className="auth-tagline">연구실 올인원 운영 플랫폼</div>
+      </div>
+
+      {/* 흰 카드 영역 */}
       <div className="auth-card">
-        <div className="auth-tabs">
-          <div className={`auth-tab${tab === 'login' ? ' active' : ''}`} onClick={() => setTab('login')}>로그인</div>
-          <div className={`auth-tab${tab === 'signup' ? ' active' : ''}`} onClick={() => setTab('signup')}>가입</div>
+        {/* 탭 세그먼트 */}
+        <div className="auth-seg">
+          <button className={`auth-seg-btn${tab === 'login' ? ' active' : ''}`} onClick={() => setTab('login')}>
+            로그인
+          </button>
+          <button className={`auth-seg-btn${tab === 'signup' ? ' active' : ''}`} onClick={() => setTab('signup')}>
+            회원가입
+          </button>
         </div>
 
+        {/* 에러 */}
         {error && (
-          <div style={{ background: '#FDEAEA', border: '1px solid #f8c5c5', borderRadius: 8, padding: '10px 12px', fontSize: 13, color: '#c23b3b', marginBottom: 14 }}>
-            {error}
+          <div style={{
+            background: 'var(--red-light)', border: '1px solid #f5c0c0',
+            borderRadius: 10, padding: '11px 13px',
+            fontSize: 13, color: '#c42e2e', marginBottom: 16,
+            display: 'flex', alignItems: 'center', gap: 8
+          }}>
+            <span style={{ flexShrink: 0 }}>⚠️</span>
+            <span>{error}</span>
           </div>
         )}
 
@@ -140,38 +152,51 @@ export default function AuthScreen({ onLogin }) {
           <>
             <div className="form-group">
               <label className="form-label">이메일</label>
-              <input className="form-input" value={email} onChange={e => setEmail(e.target.value)} placeholder="lab@yonsei.ac.kr" />
+              <input className="form-input" value={email} onChange={e => setEmail(e.target.value)}
+                placeholder="lab@yonsei.ac.kr" type="email" autoComplete="email" />
             </div>
             <div className="form-group">
               <label className="form-label">비밀번호</label>
-              <input className="form-input" type="password" value={pw} onChange={e => setPw(e.target.value)} placeholder="••••••••"
+              <input className="form-input" type="password" value={pw} onChange={e => setPw(e.target.value)}
+                placeholder="••••••••" autoComplete="current-password"
                 onKeyDown={e => e.key === 'Enter' && handleLogin()} />
             </div>
-            <button className="btn-primary" onClick={handleLogin} disabled={loading}>
+            <button className="btn-primary" onClick={handleLogin} disabled={loading} style={{ marginTop: 4 }}>
               {loading ? '로그인 중...' : '로그인'}
             </button>
-            <div className="or-divider">또는</div>
+            <div className="or-divider" style={{ marginTop: 20 }}>또는</div>
             <button className="google-btn" onClick={handleGoogle} disabled={loading}>
               <svg width="18" height="18" viewBox="0 0 18 18">
-                <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4" />
-                <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z" fill="#34A853" />
-                <path d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71s.102-1.17.282-1.71V4.958H.957C.347 6.173 0 7.548 0 9s.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05" />
-                <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335" />
+                <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
+                <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z" fill="#34A853"/>
+                <path d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71s.102-1.17.282-1.71V4.958H.957C.347 6.173 0 7.548 0 9s.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+                <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
               </svg>
               Google로 계속하기
             </button>
           </>
         ) : (
           <>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-              <button onClick={() => setMode('join')}
-                style={{ flex: 1, padding: '10px', border: `2px solid ${mode === 'join' ? 'var(--green)' : 'var(--border)'}`, borderRadius: 8, background: mode === 'join' ? 'var(--green-light)' : 'var(--card)', color: mode === 'join' ? 'var(--green)' : 'var(--text2)', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
-                🔑 코드로 입장
-              </button>
-              <button onClick={() => setMode('create')}
-                style={{ flex: 1, padding: '10px', border: `2px solid ${mode === 'create' ? 'var(--green)' : 'var(--border)'}`, borderRadius: 8, background: mode === 'create' ? 'var(--green-light)' : 'var(--card)', color: mode === 'create' ? 'var(--green)' : 'var(--text2)', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
-                🏗️ 연구실 생성
-              </button>
+            {/* 참여 / 생성 토글 */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+              {[
+                { k: 'join', icon: '🔑', label: '코드로 입장' },
+                { k: 'create', icon: '🏗️', label: '연구실 생성' },
+              ].map(m => (
+                <button key={m.k} onClick={() => setMode(m.k)} style={{
+                  flex: 1, padding: '11px 8px',
+                  border: `2px solid ${mode === m.k ? 'var(--green)' : 'var(--border)'}`,
+                  borderRadius: 12,
+                  background: mode === m.k ? 'var(--green-ultra)' : 'var(--card)',
+                  color: mode === m.k ? 'var(--green)' : 'var(--text2)',
+                  fontWeight: 700, fontSize: 13, cursor: 'pointer',
+                  transition: 'all .2s', fontFamily: 'inherit',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4
+                }}>
+                  <span style={{ fontSize: 18 }}>{m.icon}</span>
+                  {m.label}
+                </button>
+              ))}
             </div>
 
             <div className="form-group">
@@ -180,7 +205,7 @@ export default function AuthScreen({ onLogin }) {
             </div>
             <div className="form-group">
               <label className="form-label">이메일</label>
-              <input className="form-input" value={email} onChange={e => setEmail(e.target.value)} placeholder="lab@yonsei.ac.kr" />
+              <input className="form-input" value={email} onChange={e => setEmail(e.target.value)} placeholder="lab@yonsei.ac.kr" type="email" />
             </div>
             <div className="form-group">
               <label className="form-label">비밀번호</label>
@@ -190,27 +215,27 @@ export default function AuthScreen({ onLogin }) {
             {mode === 'join' ? (
               <>
                 <div className="form-group">
-                  <label className="form-label">역할 선택</label>
+                  <label className="form-label">역할</label>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                     {ROLES.map(r => (
                       <button key={r.value} onClick={() => setRole(r.value)} style={{
                         padding: '10px 8px',
                         border: `2px solid ${role === r.value ? 'var(--green)' : 'var(--border)'}`,
-                        borderRadius: 10,
-                        background: role === r.value ? 'var(--green-light)' : 'var(--card)',
-                        cursor: 'pointer', textAlign: 'center',
-                        transition: 'all .15s',
+                        borderRadius: 12,
+                        background: role === r.value ? 'var(--green-ultra)' : 'var(--card)',
+                        cursor: 'pointer', textAlign: 'center', transition: 'all .15s',
+                        fontFamily: 'inherit',
                       }}>
-                        <div style={{ fontSize: 22, marginBottom: 4 }}>{r.emoji}</div>
+                        <div style={{ fontSize: 20, marginBottom: 3 }}>{r.emoji}</div>
                         <div style={{ fontSize: 12, fontWeight: 700, color: role === r.value ? 'var(--green)' : 'var(--text)' }}>{r.value}</div>
-                        <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 2 }}>{r.desc}</div>
+                        <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 1 }}>{r.desc}</div>
                       </button>
                     ))}
                   </div>
                 </div>
                 <div className="form-group">
                   <label className="form-label">연구실 초대코드</label>
-                  <input className="form-input" value={code} onChange={e => setCode(e.target.value.toUpperCase())} placeholder="예: NANO-042" />
+                  <input className="form-input" value={code} onChange={e => setCode(e.target.value.toUpperCase())} placeholder="예: NANO-042" style={{ letterSpacing: 1, fontWeight: 600 }} />
                 </div>
               </>
             ) : (
@@ -220,7 +245,7 @@ export default function AuthScreen({ onLogin }) {
               </div>
             )}
 
-            <button className="btn-primary" onClick={handleSignup} disabled={loading}>
+            <button className="btn-primary" onClick={handleSignup} disabled={loading} style={{ marginTop: 4 }}>
               {loading ? '처리 중...' : mode === 'join' ? '입장하기' : '연구실 만들기'}
             </button>
           </>

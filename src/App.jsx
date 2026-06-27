@@ -23,9 +23,20 @@ const TABS = [
 
 function LoadingScreen() {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'var(--bg)' }}>
-      <div style={{ fontSize: 40, fontWeight: 900, color: 'var(--green)', letterSpacing: -2, marginBottom: 16 }}>LABO</div>
-      <div style={{ fontSize: 13, color: 'var(--text2)' }}>불러오는 중...</div>
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      height: '100vh',
+      background: 'linear-gradient(160deg, #2BBD83 0%, #1F9D6B 45%, #147A4F 100%)',
+    }}>
+      <div style={{ fontSize: 52, fontWeight: 900, color: '#fff', letterSpacing: -4, lineHeight: 1, marginBottom: 20 }}>LABO</div>
+      <div style={{ display: 'flex', gap: 6 }}>
+        {[0, 1, 2].map(i => (
+          <div key={i} style={{
+            width: 6, height: 6, borderRadius: '50%', background: 'rgba(255,255,255,0.7)',
+            animation: `pulse 1.2s ease-in-out ${i * 0.2}s infinite`,
+          }} />
+        ))}
+      </div>
     </div>
   )
 }
@@ -172,22 +183,28 @@ export default function App() {
       {/* 상단 헤더 */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '12px 20px 0', position: 'sticky', top: 0, zIndex: 50, background: 'var(--bg)'
+        padding: '14px 20px 0', position: 'sticky', top: 0, zIndex: 50,
+        background: 'var(--bg)',
       }}>
-        <div style={{ fontWeight: 900, fontSize: 22, color: 'var(--green)', letterSpacing: -1 }}>LABO</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 12, color: 'var(--text2)' }}>
-            {labInfo?.name?.slice(0, 10)}{labInfo?.name?.length > 10 ? '...' : ''}
-          </span>
-          <button onClick={() => setShowSidebar(true)} style={{
-            width: 34, height: 34, borderRadius: '50%',
-            background: 'var(--green)', color: '#fff', border: 'none', cursor: 'pointer',
-            fontWeight: 700, fontSize: 16,
-            display: 'flex', alignItems: 'center', justifyContent: 'center'
-          }}>
-            {user.avatar || user.name?.slice(-1)}
-          </button>
+        <div>
+          <div style={{ fontWeight: 900, fontSize: 21, color: 'var(--green)', letterSpacing: -1.5, lineHeight: 1 }}>LABO</div>
+          {labInfo?.name && (
+            <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2, fontWeight: 500 }}>
+              {labInfo.name.length > 14 ? labInfo.name.slice(0, 14) + '…' : labInfo.name}
+            </div>
+          )}
         </div>
+        <button onClick={() => setShowSidebar(true)} style={{
+          width: 38, height: 38, borderRadius: '50%',
+          background: 'linear-gradient(135deg, var(--green-light) 0%, #d0eddf 100%)',
+          border: '1.5px solid var(--green-light)',
+          color: 'var(--green)', cursor: 'pointer',
+          fontWeight: 700, fontSize: 18,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 2px 8px rgba(31,157,107,0.18)',
+        }}>
+          {user.avatar || user.name?.slice(-1)}
+        </button>
       </div>
 
       <div className="content-area">
