@@ -26,6 +26,8 @@ export default function HomeTab({ user, schedules, supplies, notices, setActiveT
   const todayItems = schedules
     .filter(s => {
       if (s.type === 'task') {
+        // 홈 화면엔 내 잡무만
+        if (s.assignee !== user.name) return false
         const dates = generateTaskDates(s.startDate || s.date, s.repeat, s.repeatDays)
         return dates.includes(todayStr)
       }
