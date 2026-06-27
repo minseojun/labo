@@ -58,12 +58,14 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
   // 분담 현황은 부담 큰 순으로 보여줘서 불균형이 바로 보이게
   const workloadRows = [...memberCounts].sort((a, b) => b.count - a.count)
 
+  const myTasks = tasks.filter(t => t.assignee === user.name)
+
   const tasksOnDate = useMemo(() => {
-    return tasks.filter(task => {
+    return myTasks.filter(task => {
       const dates = generateTaskDates(task.startDate || task.date, task.repeat, task.repeatDays)
       return dates.includes(selectedDate)
     })
-  }, [tasks, selectedDate])
+  }, [myTasks, selectedDate])
 
   const isToday = selectedDate === fmtDate(new Date())
   const dateLabel = isToday ? '오늘' : selectedDate.replace(/^\d{4}-/, '').replace('-', '. ')
@@ -148,10 +150,10 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
           )
         })}
 
-        {tasks.length > 0 && (
+        {myTasks.length > 0 && (
           <>
-            <div className="tsk-all-label">전체 잡무 {tasks.length}개</div>
-            {tasks.map(task => {
+            <div className="tsk-all-label">내 잡무 {myTasks.length}개</div>
+            {myTasks.map(task => {
               const color = memberColor(task.assignee)
               return (
                 <div key={task.id} className="tsk-row">
