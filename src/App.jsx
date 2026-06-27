@@ -209,8 +209,8 @@ export default function App() {
 
       <div className="content-area">
         {activeTab === 'home' && (
-          <HomeTab user={user} schedules={schedulesHook.data} supplies={suppliesHook.data}
-            notices={noticesHook.data} setActiveTab={setActiveTab} timers={timers} />
+          <HomeTab user={user} schedules={schedulesHook.data} schedulesHook={schedulesHook}
+            supplies={suppliesHook.data} notices={noticesHook.data} setActiveTab={setActiveTab} timers={timers} />
         )}
         {activeTab === 'schedule' && (
           <ScheduleTab labId={labId} schedules={schedulesHook.data} schedulesHook={schedulesHook}

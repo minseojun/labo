@@ -13,6 +13,7 @@ export default function CalendarSection({ labId, schedules, schedulesHook, notic
   const [showEdit, setShowEdit] = useState(null)
   const [newNotice, setNewNotice] = useState('')
   const [showHidden, setShowHidden] = useState(false)
+  const [quickAdd, setQuickAdd] = useState('')
   const [form, setForm] = useState({ name: '', date: fmtDate(today), time: '10:00', type: 'lab', assignee: '전체' })
 
   const uniqueMembers = members.filter((m, i, arr) => arr.findIndex(x => x.id === m.id) === i)
@@ -65,8 +66,19 @@ export default function CalendarSection({ labId, schedules, schedulesHook, notic
     if (!body) return
     if (body.length > 500) { toast.error('공지는 500자 이내로 입력해주세요.'); return }
     try {
-      await noticesHook.add({ author: user.name, body, pinned: false })
+      await noticesHook.add({ author: user.name, body, pinned: false, date: fmtDate(new Date()) })
       setNewNotice('')
+    } catch (e) {
+      // error shown by hook
+    }
+  }
+
+  const handleQuickAdd = async () => {
+    const name = quickAdd.trim()
+    if (!name) return
+    try {
+      await schedulesHook.add({ name, type: 'mine', assignee: user.name, date: selDate, time: '', done: false })
+      setQuickAdd('')
     } catch (e) {
       // error shown by hook
     }
@@ -93,33 +105,51 @@ export default function CalendarSection({ labId, schedules, schedulesHook, notic
           const isToday = ds === fmtDate(today)
           const isSel = ds === selDate
           const hasSched = nonTaskSchedules.some(s => s.date === ds)
+          const hasNotice = notices.some(n => !n.hidden && n.date === ds)
           return (
             <div key={i} className="day-col" onClick={() => setSelDate(ds)}>
               <div className="day-label">{DAYS[d.getDay()]}</div>
               <div className={`day-num${isToday ? ' today' : isSel ? ' selected' : ''}`}>{d.getDate()}</div>
-              {hasSched && !isToday && !isSel && <div className="day-dot" />}
+              <div style={{ display: 'flex', gap: 3, justifyContent: 'center', minHeight: 8 }}>
+                {hasSched && !isToday && !isSel && <div className="day-dot" />}
+                {hasNotice && <div className="day-dot" style={{ background: 'var(--red)' }} />}
+              </div>
             </div>
           )
         })}
       </div>
 
-      {filtered.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text2)', fontSize: 13 }}>이 날 일정이 없습니다</div>
-      ) : filtered.map(s => (
-        <div key={s.id} className="sched-item" onClick={() => setShowEdit({ ...s })}>
-          <div className="sched-bar" style={{ background: s.type === 'lab' ? 'var(--green)' : 'var(--purple)' }} />
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 500, fontSize: 14 }}>{s.name}</div>
-            <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>{s.time && `${s.time} · `}{s.assignee}</div>
+      {filtered.length === 0
+        ? <div style={{ textAlign: 'center', padding: '16px 20px 4px', color: 'var(--text2)', fontSize: 13 }}>이 날 일정이 없습니다</div>
+        : filtered.map(s => (
+          <div key={s.id} className="sched-item" onClick={() => setShowEdit({ ...s })}>
+            <div className="sched-bar" style={{ background: s.type === 'lab' ? 'var(--green)' : 'var(--purple)' }} />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 500, fontSize: 14 }}>{s.name}</div>
+              <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>{s.time && `${s.time} · `}{s.assignee}</div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              {s.type === 'mine' && <span className="chip chip-purple">개인</span>}
+              {s.type === 'lab' && <span className="chip chip-green">공용</span>}
+              <button onClick={e => deleteSchedule(s, e)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text2)', fontSize: 16, padding: '2px 6px' }}>×</button>
+            </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            {s.type === 'mine' && <span className="chip chip-purple">개인</span>}
-            {s.type === 'lab' && <span className="chip chip-green">공용</span>}
-            <button onClick={e => deleteSchedule(s, e)}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text2)', fontSize: 16, padding: '2px 6px' }}>×</button>
-          </div>
-        </div>
-      ))}
+        ))
+      }
+
+      {/* 날짜 클릭 후 간편 추가 */}
+      <div style={{ display: 'flex', gap: 8, padding: '8px 16px 4px', borderTop: filtered.length > 0 ? '1px solid var(--border)' : 'none' }}>
+        <input className="form-input" value={quickAdd}
+          onChange={e => setQuickAdd(e.target.value)}
+          placeholder={`+ ${selDate.replace(/^\d{4}-/, '').replace('-', '/')}에 할 일 추가...`}
+          style={{ flex: 1, fontSize: 13 }}
+          onKeyDown={e => e.key === 'Enter' && handleQuickAdd()} />
+        {quickAdd.trim() && (
+          <button onClick={handleQuickAdd}
+            style={{ padding: '0 14px', background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>추가</button>
+        )}
+      </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 16px 8px' }}>
         <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: .6 }}>공지사항</span>
