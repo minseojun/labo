@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { DAYS } from '../mockData'
-import { fmtDate, formatTime } from '../utils'
+import { fmtDate, formatTime, generateTaskDates } from '../utils'
 import { useUserTodos } from '../hooks/useFirestore'
 
 const typeStyle = {
@@ -14,18 +14,31 @@ export default function HomeTab({ user, schedules, supplies, notices, setActiveT
   const todayStr = fmtDate(today)
 
   // 오늘 일정 (잡무 포함) — 시간 있는 것 먼저, 없는 것 뒤
+  // 잡무는 반복 주기로 오늘 해당 여부를 계산해야 함
   const todayItems = schedules
-    .filter(s => s.date === todayStr)
+    .filter(s => {
+      if (s.type === 'task') {
+        const dates = generateTaskDates(s.startDate || s.date, s.repeat, s.repeatDays)
+        return dates.includes(todayStr)
+      }
+      return s.date === todayStr
+    })
     .sort((a, b) => {
       if (a.time && !b.time) return -1
       if (!a.time && b.time) return 1
       return (a.time || '').localeCompare(b.time || '')
     })
 
-  // 내 예정 잡무 (오늘 이후, 나에게 할당)
+  // 내 예정 잡무 (오늘 이후 가장 가까운 날짜 기준)
   const upcomingMyTasks = schedules
-    .filter(s => s.type === 'task' && s.assignee === user.name && s.date > todayStr)
-    .sort((a, b) => a.date.localeCompare(b.date))
+    .filter(s => s.type === 'task' && s.assignee === user.name)
+    .map(s => {
+      const dates = generateTaskDates(s.startDate || s.date, s.repeat, s.repeatDays)
+      const next = dates.find(d => d > todayStr)
+      return next ? { ...s, nextDate: next } : null
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.nextDate.localeCompare(b.nextDate))
     .slice(0, 3)
 
   const redSupplies    = supplies.filter(s => s.status === 'red')
@@ -121,7 +134,7 @@ export default function HomeTab({ user, schedules, supplies, notices, setActiveT
           },
           {
             icon: '🧹', label: '내 잡무', value: upcomingMyTasks.length,
-            sub: upcomingMyTasks.length > 0 ? dday(upcomingMyTasks[0].date)?.label || '' : '없음',
+            sub: upcomingMyTasks.length > 0 ? dday(upcomingMyTasks[0].nextDate)?.label || '' : '없음',
             color: 'var(--yellow)', tab: 'schedule',
           },
           {
@@ -197,7 +210,7 @@ export default function HomeTab({ user, schedules, supplies, notices, setActiveT
                     </div>
                   )}
                   {upcomingMyTasks.map((task, i) => {
-                    const dd = dday(task.date)
+                    const dd = dday(task.nextDate)
                     return (
                       <div key={task.id} style={{
                         display: 'flex', alignItems: 'center', gap: 12,
@@ -207,7 +220,7 @@ export default function HomeTab({ user, schedules, supplies, notices, setActiveT
                         <div style={{ width: 4, height: 36, borderRadius: 2, flexShrink: 0, background: 'var(--yellow)' }} />
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.name}</div>
-                          <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>{task.date}</div>
+                          <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>{task.nextDate}</div>
                         </div>
                         {dd && <span style={{ fontSize: 11, fontWeight: 700, color: dd.color, flexShrink: 0 }}>{dd.label}</span>}
                       </div>
