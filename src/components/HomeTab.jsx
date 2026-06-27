@@ -1,7 +1,6 @@
 import React, { useState } from 'react'
 import { DAYS } from '../mockData'
 import { fmtDate, formatTime, generateTaskDates } from '../utils'
-import { useUserTodos } from '../hooks/useFirestore'
 
 const typeStyle = {
   lab:  { bar: 'var(--green)',  chip: 'chip-green',  label: '공용' },
@@ -9,12 +8,14 @@ const typeStyle = {
   task: { bar: 'var(--yellow)', chip: 'chip-yellow', label: '잡무' },
 }
 
-export default function HomeTab({ user, schedules, supplies, notices, setActiveTab, timers = [] }) {
+export default function HomeTab({ user, schedules, schedulesHook, supplies, notices, setActiveTab, timers = [] }) {
   const today = new Date()
   const todayStr = fmtDate(today)
 
-  // 오늘 일정 (잡무 포함) — 시간 있는 것 먼저, 없는 것 뒤
-  // 잡무는 반복 주기로 오늘 해당 여부를 계산해야 함
+  const [newTodo, setNewTodo] = useState('')
+  const [todoDate, setTodoDate] = useState(todayStr)
+
+  // 홈 stats: 내 오늘 일정 수 (공용 + 나에게 할당)
   const myTodayCount = schedules.filter(s => {
     if (s.type === 'task') {
       const dates = generateTaskDates(s.startDate || s.date, s.repeat, s.repeatDays)
@@ -23,10 +24,10 @@ export default function HomeTab({ user, schedules, supplies, notices, setActiveT
     return s.date === todayStr && (s.type === 'lab' || s.assignee === user.name)
   }).length
 
+  // 오늘 섹션: 전체 (잡무는 내 것만)
   const todayItems = schedules
     .filter(s => {
       if (s.type === 'task') {
-        // 홈 화면엔 내 잡무만
         if (s.assignee !== user.name) return false
         const dates = generateTaskDates(s.startDate || s.date, s.repeat, s.repeatDays)
         return dates.includes(todayStr)
@@ -39,7 +40,7 @@ export default function HomeTab({ user, schedules, supplies, notices, setActiveT
       return (a.time || '').localeCompare(b.time || '')
     })
 
-  // 내 예정 잡무 (오늘 이후 가장 가까운 날짜 기준)
+  // 내 예정 잡무 (오늘 이후)
   const upcomingMyTasks = schedules
     .filter(s => s.type === 'task' && s.assignee === user.name)
     .map(s => {
@@ -51,21 +52,38 @@ export default function HomeTab({ user, schedules, supplies, notices, setActiveT
     .sort((a, b) => a.nextDate.localeCompare(b.nextDate))
     .slice(0, 3)
 
-  const redSupplies    = supplies.filter(s => s.status === 'red')
-  const yellowSupplies = supplies.filter(s => s.status === 'yellow')
+  // 할 일 = 내 mine-type 일정 (schedules 기반)
+  const myTodos = schedules
+    .filter(s => s.type === 'mine' && s.assignee === user.name && s.date >= todayStr)
+    .filter(s => !s.done || s.doneDate === todayStr)
+    .sort((a, b) => a.date.localeCompare(b.date))
 
-  const { todos, add, toggle, remove } = useUserTodos(user.id)
-  const [newTodo, setNewTodo] = useState('')
-
-  // 완료된 할 일은 오늘 완료한 것만 보여줌
-  const visibleTodos = todos.filter(t => !t.done || t.doneDate === todayStr)
-  const doneTodos = visibleTodos.filter(t => t.done).length
+  const doneTodos = myTodos.filter(t => t.done).length
 
   const addTodo = async () => {
-    if (!newTodo.trim()) return
-    await add(newTodo)
-    setNewTodo('')
+    const name = newTodo.trim()
+    if (!name) return
+    try {
+      await schedulesHook.add({ name, type: 'mine', assignee: user.name, date: todoDate, time: '', done: false })
+      setNewTodo('')
+      setTodoDate(todayStr)
+    } catch (e) {}
   }
+
+  const toggleTodo = async (id, done) => {
+    try {
+      await schedulesHook.update(id, { done: !done, doneDate: !done ? todayStr : null })
+    } catch (e) {}
+  }
+
+  const removeTodo = async (id) => {
+    try {
+      await schedulesHook.remove(id)
+    } catch (e) {}
+  }
+
+  const redSupplies    = supplies.filter(s => s.status === 'red')
+  const yellowSupplies = supplies.filter(s => s.status === 'yellow')
 
   const hour = today.getHours()
   const greeting = hour < 12 ? '좋은 아침이에요 ☀️' : hour < 18 ? '좋은 오후예요 🌤' : '수고했어요 🌙'
@@ -87,6 +105,12 @@ export default function HomeTab({ user, schedules, supplies, notices, setActiveT
     if (diff === 0) return { label: 'D-Day', color: 'var(--red)' }
     if (diff <= 3)  return { label: `D-${diff}`, color: 'var(--yellow)' }
     return { label: `D-${diff}`, color: 'var(--green)' }
+  }
+
+  const fmtShort = (dateStr) => {
+    if (!dateStr) return ''
+    if (dateStr === todayStr) return '오늘'
+    return dateStr.replace(/^\d{4}-/, '').replace('-', '/')
   }
 
   return (
@@ -139,7 +163,7 @@ export default function HomeTab({ user, schedules, supplies, notices, setActiveT
         {[
           {
             icon: '📅', label: '오늘 일정', value: myTodayCount,
-            sub: myTodayCount > 0 ? (todayItems[0].time ? `${todayItems[0].time} 시작` : todayItems[0].name?.slice(0, 6)) : '없음',
+            sub: myTodayCount > 0 ? (todayItems[0]?.time ? `${todayItems[0].time} 시작` : todayItems[0]?.name?.slice(0, 6)) : '없음',
             color: 'var(--green)', tab: 'schedule',
           },
           {
@@ -188,7 +212,6 @@ export default function HomeTab({ user, schedules, supplies, notices, setActiveT
             </div>
           ) : (
             <>
-              {/* 오늘 항목 */}
               {todayItems.map((s, i) => {
                 const ts = typeStyle[s.type] || typeStyle.lab
                 return (
@@ -209,7 +232,6 @@ export default function HomeTab({ user, schedules, supplies, notices, setActiveT
                 )
               })}
 
-              {/* 예정된 내 잡무 구분선 */}
               {upcomingMyTasks.length > 0 && (
                 <>
                   {todayItems.length > 0 && (
@@ -272,60 +294,73 @@ export default function HomeTab({ user, schedules, supplies, notices, setActiveT
         </div>
       )}
 
-      {/* 할 일 */}
+      {/* 할 일 (schedules mine 기반) */}
       <div style={{ margin: '16px 16px 0' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
           <span style={{ fontSize: 14, fontWeight: 800, letterSpacing: -.3 }}>할 일</span>
-          {visibleTodos.length > 0 && (
-            <span style={{ fontSize: 11, color: 'var(--text2)' }}>{doneTodos}/{visibleTodos.length} 완료</span>
+          {myTodos.length > 0 && (
+            <span style={{ fontSize: 11, color: 'var(--text2)' }}>{doneTodos}/{myTodos.length} 완료</span>
           )}
         </div>
 
-        {visibleTodos.length > 0 && (
+        {myTodos.length > 0 && (
           <div style={{ height: 4, background: 'var(--border)', borderRadius: 2, marginBottom: 10, overflow: 'hidden' }}>
             <div style={{
               height: '100%', borderRadius: 2,
               background: 'linear-gradient(90deg, var(--green-mid), var(--green))',
-              width: `${(doneTodos / visibleTodos.length) * 100}%`, transition: 'width .35s ease',
+              width: `${(doneTodos / myTodos.length) * 100}%`, transition: 'width .35s ease',
             }} />
           </div>
         )}
 
         <div style={{ background: 'var(--card)', borderRadius: 16, boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
-          {visibleTodos.length === 0 && (
+          {myTodos.length === 0 && (
             <div style={{ textAlign: 'center', padding: '16px', color: 'var(--text2)', fontSize: 13 }}>
               할 일을 추가해보세요
             </div>
           )}
-          {visibleTodos.map((t, i) => (
+          {myTodos.map((t, i) => (
             <div key={t.id} style={{
               display: 'flex', alignItems: 'center', gap: 10,
               padding: '12px 14px',
-              borderBottom: i < visibleTodos.length - 1 ? '1px solid var(--border)' : 'none',
+              borderBottom: i < myTodos.length - 1 ? '1px solid var(--border)' : 'none',
               background: t.done ? 'var(--bg)' : 'var(--card)',
               transition: 'background .2s',
             }}>
-              <div className={`todo-check${t.done ? ' done' : ''}`} onClick={() => toggle(t.id, !t.done)}>
+              <div className={`todo-check${t.done ? ' done' : ''}`} onClick={() => toggleTodo(t.id, t.done)}>
                 {t.done && <svg width="10" height="8" viewBox="0 0 10 8"><path d="M1 4l3 3 5-6" stroke="#fff" strokeWidth="2" fill="none" strokeLinecap="round" /></svg>}
               </div>
               <span style={{
                 flex: 1, fontSize: 13,
                 textDecoration: t.done ? 'line-through' : 'none',
                 color: t.done ? 'var(--text2)' : 'var(--text)',
-              }}>{t.text}</span>
-              <button onClick={() => remove(t.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', fontSize: 18, padding: '0 2px', lineHeight: 1 }}>×</button>
+              }}>{t.name}</span>
+              {t.date !== todayStr && (
+                <span style={{ fontSize: 10, color: 'var(--text3)', flexShrink: 0 }}>{fmtShort(t.date)}</span>
+              )}
+              <button onClick={() => removeTodo(t.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', fontSize: 18, padding: '0 2px', lineHeight: 1 }}>×</button>
             </div>
           ))}
-          <div style={{ display: 'flex', borderTop: visibleTodos.length > 0 ? '1px solid var(--border)' : 'none' }}>
-            <input
-              className="form-input"
-              style={{ flex: 1, padding: '12px 14px', fontSize: 13, border: 'none', background: 'transparent', borderRadius: 0, boxShadow: 'none' }}
-              value={newTodo} onChange={e => setNewTodo(e.target.value)}
-              placeholder="+ 할 일 추가..."
-              onKeyDown={e => e.key === 'Enter' && addTodo()}
-            />
+          <div style={{ borderTop: myTodos.length > 0 ? '1px solid var(--border)' : 'none' }}>
+            <div style={{ display: 'flex', alignItems: 'center', padding: '4px 14px 4px 4px', gap: 8 }}>
+              <input
+                className="form-input"
+                style={{ flex: 1, padding: '10px 10px', fontSize: 13, border: 'none', background: 'transparent', borderRadius: 0, boxShadow: 'none' }}
+                value={newTodo} onChange={e => setNewTodo(e.target.value)}
+                placeholder="+ 할 일 추가..."
+                onKeyDown={e => e.key === 'Enter' && addTodo()}
+              />
+              <input
+                type="date"
+                value={todoDate}
+                onChange={e => setTodoDate(e.target.value)}
+                style={{ fontSize: 11, color: 'var(--text2)', border: '1px solid var(--border)', borderRadius: 8, padding: '4px 6px', background: 'var(--bg)', cursor: 'pointer', flexShrink: 0 }}
+              />
+            </div>
             {newTodo.trim() && (
-              <button onClick={addTodo} style={{ padding: '0 16px', background: 'var(--green)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>추가</button>
+              <div style={{ padding: '0 14px 10px' }}>
+                <button onClick={addTodo} style={{ width: '100%', padding: '8px', background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>추가</button>
+              </div>
             )}
           </div>
         </div>
@@ -346,7 +381,10 @@ export default function HomeTab({ user, schedules, supplies, notices, setActiveT
               }}>
                 {n.pinned && <div style={{ fontSize: 10, color: 'var(--red)', fontWeight: 700, marginBottom: 3 }}>📌 고정</div>}
                 <div style={{ fontSize: 13, fontWeight: 500, lineHeight: 1.5 }}>{n.body}</div>
-                <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 5 }}>{n.author}</div>
+                <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 5, display: 'flex', gap: 6 }}>
+                  <span>{n.author}</span>
+                  {n.date && <span>· {n.date.replace(/^\d{4}-/, '').replace('-', '/')}</span>}
+                </div>
               </div>
             ))}
           </div>

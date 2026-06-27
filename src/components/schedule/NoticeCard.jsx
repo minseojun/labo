@@ -42,7 +42,10 @@ export default function NoticeCard({ n, labId, user, noticesHook, hidden }) {
       </div>
       <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 8, color: hidden ? 'var(--text2)' : 'var(--text)' }}>{n.body}</div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <div style={{ fontSize: 11, color: 'var(--text2)' }}>{n.author}</div>
+        <div style={{ fontSize: 11, color: 'var(--text2)', display: 'flex', gap: 6 }}>
+          <span>{n.author}</span>
+          {n.date && <span>· {n.date.replace(/^\d{4}-/, '').replace('-', '/')}</span>}
+        </div>
         <div style={{ display: 'flex', gap: 6 }}>
           {user.role === '교수' && !hidden && (
             <button onClick={handleTogglePin}
