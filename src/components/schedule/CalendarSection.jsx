@@ -133,7 +133,7 @@ export default function CalendarSection({ labId, schedules, schedulesHook, notic
         <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: .6 }}>공지사항</span>
         {hiddenNotices.length > 0 && (
           <button onClick={() => setShowHidden(p => !p)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--text2)', fontWeight: 600 }}>
-            {showHidden ? '👁 숨김 닫기' : `🗂 숨긴 공지 ${hiddenNotices.length}개`}
+            {showHidden ? '👁 숨김 닫기' : '🗂 숨긴 공지'}
           </button>
         )}
       </div>
@@ -144,7 +144,7 @@ export default function CalendarSection({ labId, schedules, schedulesHook, notic
       {[...pinnedNotices, ...normalNotices].map(n => <NoticeCard key={n.id} n={n} labId={labId} user={user} noticesHook={noticesHook} hidden={false} />)}
       {showHidden && hiddenNotices.length > 0 && (
         <div style={{ margin: '4px 16px 0' }}>
-          <div style={{ fontSize: 11, color: 'var(--text2)', fontWeight: 600, marginBottom: 8, padding: '8px 0 4px', borderTop: '1px dashed var(--border)' }}>🗂 숨긴 공지 — {hiddenNotices.length}개</div>
+          <div style={{ fontSize: 11, color: 'var(--text2)', fontWeight: 600, marginBottom: 8, padding: '8px 0 4px', borderTop: '1px dashed var(--border)' }}>🗂 숨긴 공지</div>
           {hiddenNotices.map(n => <NoticeCard key={n.id} n={n} labId={labId} user={user} noticesHook={noticesHook} hidden={true} />)}
         </div>
       )}

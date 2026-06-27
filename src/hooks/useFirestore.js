@@ -101,7 +101,11 @@ export function useUserTodos(userId) {
 
   const toggle = async (id, done) => {
     try {
-      return await updateDoc(doc(db, 'users', userId, 'todos', id), { done })
+      const today = new Date().toISOString().split('T')[0]
+      return await updateDoc(doc(db, 'users', userId, 'todos', id), {
+        done,
+        doneDate: done ? today : null,
+      })
     } catch (e) {
       console.error(e)
       toast.error('상태 변경에 실패했어요.')
