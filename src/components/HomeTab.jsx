@@ -173,7 +173,7 @@ export default function HomeTab({ user, schedules, schedulesHook, supplies, noti
           },
           {
             icon: '📦', label: '재고 주의', value: redSupplies.length + yellowSupplies.length,
-            sub: redSupplies.length > 0 ? `없음 ${redSupplies.length}개` : '정상',
+            sub: redSupplies.length > 0 ? `부족 ${redSupplies.length}개` : '정상',
             color: redSupplies.length > 0 ? 'var(--red)' : 'var(--yellow)', tab: 'supplies',
           },
         ].map(c => (

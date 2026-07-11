@@ -52,12 +52,23 @@ export function generateTaskDates(startDate, repeat, repeatDays) {
   const end = new Date(start)
   end.setMonth(end.getMonth() + 3)
 
+  if (repeat === 'monthly') {
+    // 매번 원래 시작일 기준으로 월만 더해서 계산 — setMonth를 반복 누적하면
+    // 31일처럼 매달 없는 날짜에서 다음 달로 밀려버린 뒤 영영 원래 날짜로 못 돌아옴
+    const day = start.getDate()
+    for (let i = 0; ; i++) {
+      const cur = new Date(start.getFullYear(), start.getMonth() + i, day)
+      if (cur > end) break
+      dates.push(fmtDate(cur))
+    }
+    return dates
+  }
+
   let cur = new Date(start)
   while (cur <= end) {
     dates.push(fmtDate(cur))
     if (repeat === 'weekly')    cur.setDate(cur.getDate() + 7)
     else if (repeat === 'biweekly') cur.setDate(cur.getDate() + 14)
-    else if (repeat === 'monthly')  cur.setMonth(cur.getMonth() + 1)
     else if (repeat === 'custom' && repeatDays) cur.setDate(cur.getDate() + repeatDays)
     else break // 1회
   }

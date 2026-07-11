@@ -135,7 +135,7 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
         lastUser: user.name,
         logs: arrayUnion(newLog)
       })
-      setSel(p => p ? { ...p, status: isUsing ? 'available' : 'in-use', lastUser: user.name, logs: [newLog, ...(p.logs || [])] } : p)
+      setSel(p => p ? { ...p, status: isUsing ? 'available' : 'in-use', lastUser: user.name, logs: [...(p.logs || []), newLog] } : p)
       if (isUsing) setMemo('')
     } catch (e) {
       console.error(e)
@@ -282,7 +282,7 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)', margin: '14px 0 8px', textTransform: 'uppercase', letterSpacing: .5 }}>사용 이력</div>
             {(!sel.logs || sel.logs.length === 0) ? (
               <div style={{ textAlign: 'center', padding: '10px 0', fontSize: 12, color: 'var(--text2)' }}>사용 이력이 없습니다</div>
-            ) : [...sel.logs].slice(0, 8).map((l, i) => (
+            ) : [...sel.logs].reverse().slice(0, 8).map((l, i) => (
               <div key={i} className="log-item">
                 <div>
                   <span style={{ fontWeight: 500 }}>{l.user}</span>
