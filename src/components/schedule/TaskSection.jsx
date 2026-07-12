@@ -81,11 +81,10 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
     const name = form.name.trim()
     if (!name) { toast.error('잡무 이름을 입력해주세요.'); return }
     if (name.length > 100) { toast.error('이름은 100자 이내로 입력해주세요.'); return }
-    if (!form.assignee) { toast.error('담당자를 선택해주세요.'); return }
     if (form.repeatDays && Number(form.repeatDays) < 1) { toast.error('반복 주기는 1일 이상으로 입력해주세요.'); return }
     if (form.endDate && form.endDate < form.startDate) { toast.error('종료일은 시작일 이후여야 해요.'); return }
     const days = form.repeatDays ? Number(form.repeatDays) : 0
-    const assignee = form.assignee
+    const assignee = form.assignee || getNextAssignee()
     try {
       await schedulesHook.add({
         name, type: 'task',
@@ -140,15 +139,15 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
     const name = editTask.name.trim()
     if (!name) { toast.error('잡무 이름을 입력해주세요.'); return }
     if (name.length > 100) { toast.error('이름은 100자 이내로 입력해주세요.'); return }
-    if (!editTask.assignee) { toast.error('담당자를 선택해주세요.'); return }
     if (editTask.repeatDays && Number(editTask.repeatDays) < 1) { toast.error('반복 주기는 1일 이상으로 입력해주세요.'); return }
     if (editTask.endDate && editTask.endDate < editTask.startDate) { toast.error('종료일은 시작일 이후여야 해요.'); return }
     const days = editTask.repeatDays ? Number(editTask.repeatDays) : 0
+    const assignee = editTask.assignee || getNextAssignee()
     try {
       await schedulesHook.update(editTask.id, {
         name,
         date: editTask.startDate, startDate: editTask.startDate, endDate: editTask.endDate || null,
-        assignee: editTask.assignee, repeat: days > 0 ? 'custom' : 'none',
+        assignee, repeat: days > 0 ? 'custom' : 'none',
         repeatDays: days > 0 ? days : null,
         note: editTask.note.trim(),
       })
@@ -275,6 +274,7 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
                   </button>
                 ))}
               </div>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>선택하지 않으면 담당 잡무가 가장 적은 멤버로 자동 배정돼요.</div>
             </div>
             <div className="form-group">
               <label className="form-label">메모 (선택)</label>
@@ -335,6 +335,7 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
                   </button>
                 ))}
               </div>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>선택하지 않으면 담당 잡무가 가장 적은 멤버로 자동 배정돼요.</div>
             </div>
             <div className="form-group">
               <label className="form-label">메모 (선택)</label>
