@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { onAuthStateChanged } from 'firebase/auth'
-import { doc, getDoc, updateDoc } from 'firebase/firestore'
+import { doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore'
 import { auth, db } from './firebase'
 import AuthScreen from './components/AuthScreen'
 import HomeTab from './components/HomeTab'
@@ -13,22 +13,6 @@ import { useCollection, useMembers } from './hooks/useFirestore'
 import ToastContainer from './components/ToastContainer'
 import { toast } from './utils/toast'
 import './App.css'
-
-// 연구실에서 제외된(강퇴된) 사용자의 labId 잔여 정보를 정리
-async function checkStillMember(uid, labId) {
-  try {
-    const memberDoc = await getDoc(doc(db, 'labs', labId, 'members', uid))
-    if (!memberDoc.exists()) {
-      await updateDoc(doc(db, 'users', uid), { labId: null })
-      toast.error('연구실에서 제외되었어요. 초대코드로 다시 참여해주세요.')
-      return false
-    }
-    return true
-  } catch (e) {
-    console.error('멤버십 확인 실패:', e)
-    return true // 확인 실패 시 기존 상태 유지 (섣불리 제거하지 않음)
-  }
-}
 
 const TABS = [
   { id: 'home',      icon: '🏠', label: '홈' },
@@ -149,20 +133,15 @@ export default function App() {
           const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid))
           if (userDoc.exists()) {
             const userData = { id: firebaseUser.uid, ...userDoc.data() }
+            setUser(userData)
             if (userData.labId) {
-              const stillMember = await checkStillMember(firebaseUser.uid, userData.labId)
-              if (!stillMember) {
-                userData.labId = null
-              } else {
-                try {
-                  const labDoc = await getDoc(doc(db, 'labs', userData.labId))
-                  if (labDoc.exists()) setLabInfo({ id: labDoc.id, ...labDoc.data() })
-                } catch (labErr) {
-                  console.error('연구실 정보 로드 실패:', labErr)
-                }
+              try {
+                const labDoc = await getDoc(doc(db, 'labs', userData.labId))
+                if (labDoc.exists()) setLabInfo({ id: labDoc.id, ...labDoc.data() })
+              } catch (labErr) {
+                console.error('연구실 정보 로드 실패:', labErr)
               }
             }
-            setUser(userData)
           } else {
             setUser(null)
           }
@@ -182,17 +161,35 @@ export default function App() {
   // onAuthStateChanged가 signup 중 타이밍 이슈로 labInfo를 못 채운 경우 보완
   useEffect(() => {
     if (user?.labId && !labInfo) {
-      checkStillMember(user.id, user.labId).then(stillMember => {
-        if (!stillMember) {
-          setUser(p => p ? { ...p, labId: null } : p)
-          return
-        }
-        getDoc(doc(db, 'labs', user.labId)).then(labDoc => {
-          if (labDoc.exists()) setLabInfo({ id: labDoc.id, ...labDoc.data() })
-        }).catch(e => console.error('연구실 정보 로드 실패:', e))
-      })
+      getDoc(doc(db, 'labs', user.labId)).then(labDoc => {
+        if (labDoc.exists()) setLabInfo({ id: labDoc.id, ...labDoc.data() })
+      }).catch(e => console.error('연구실 정보 로드 실패:', e))
     }
   }, [user?.labId])
+
+  // 본인의 랩 멤버십을 실시간 감시 — 강퇴되면 labId를 정리하고,
+  // 교수가 역할을 바꾸면(다른 유저의 users 문서는 직접 못 고치므로) 스스로 동기화
+  useEffect(() => {
+    if (!user?.id || !user?.labId) return
+    const uid = user.id
+    const labId = user.labId
+    const unsub = onSnapshot(doc(db, 'labs', labId, 'members', uid), snap => {
+      if (!snap.exists()) {
+        updateDoc(doc(db, 'users', uid), { labId: null }).catch(e => console.error('labId 정리 실패:', e))
+        toast.error('연구실에서 제외되었어요. 초대코드로 다시 참여해주세요.')
+        setUser(p => (p && p.id === uid) ? { ...p, labId: null } : p)
+        setLabInfo(null)
+        return
+      }
+      const role = snap.data().role
+      setUser(p => {
+        if (!p || p.id !== uid || !role || p.role === role) return p
+        updateDoc(doc(db, 'users', uid), { role }).catch(e => console.error('역할 동기화 실패:', e))
+        return { ...p, role }
+      })
+    }, err => console.error('멤버십 감시 실패:', err))
+    return unsub
+  }, [user?.id, user?.labId])
 
   const labId = user?.labId
   const schedulesHook = useCollection(labId, 'schedules', 'date')

@@ -56,6 +56,15 @@ export function assignMemberColors(members) {
   return map
 }
 
+// 새 멤버가 합류했을 때 기존 잡무 전체를 구성원 수 기준으로 고르게 재배정
+// (id 기준 안정 정렬 후 순서대로 라운드로빈 — 누가 새로 왔는지 상관없이 결과가 결정적)
+export function redistributeTasks(tasks, members) {
+  if (tasks.length === 0 || members.length === 0) return []
+  const sortedMembers = [...members].sort((a, b) => (a.id || '').localeCompare(b.id || ''))
+  const sortedTasks = [...tasks].sort((a, b) => (a.id || '').localeCompare(b.id || ''))
+  return sortedTasks.map((t, i) => ({ id: t.id, assignee: sortedMembers[i % sortedMembers.length].name }))
+}
+
 // 잡무 반복 주기 → 다음 날짜들 생성 (3개월치)
 export function generateTaskDates(startDate, repeat, repeatDays) {
   const dates = []
