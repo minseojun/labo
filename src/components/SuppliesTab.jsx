@@ -32,7 +32,7 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
         status: newStatus,
         history: arrayUnion(entry)
       })
-      setSel(p => p && p.id === id ? { ...p, status: newStatus, history: [entry, ...(p.history || [])] } : p)
+      setSel(p => p && p.id === id ? { ...p, status: newStatus, history: [...(p.history || []), entry] } : p)
     } catch (e) {
       console.error(e)
       toast.error('상태 변경에 실패했어요.')
@@ -161,7 +161,7 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: .5 }}>변경 이력</div>
             {sel.history.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '12px 0', fontSize: 12, color: 'var(--text2)' }}>변경 이력이 없습니다</div>
-            ) : sel.history.map((h, i) => (
+            ) : [...sel.history].reverse().map((h, i) => (
               <div key={i} className="log-item">
                 <div>
                   <span style={{ fontWeight: 500 }}>{h.user}</span>
