@@ -45,6 +45,17 @@ export function memberColor(name) {
   return COLOR_PALETTE[Math.abs(hash) % COLOR_PALETTE.length]
 }
 
+// 현재 랩 구성원끼리는 색이 절대 겹치지 않도록 배정 (id 기준 안정 정렬 → 순서대로 팔레트 순환)
+// memberColor는 이름 해시만 보기 때문에 팔레트가 12색뿐이라 3명만 모여도 흔히 충돌함
+export function assignMemberColors(members) {
+  const sorted = [...members].sort((a, b) => (a.id || '').localeCompare(b.id || ''))
+  const map = {}
+  sorted.forEach((m, i) => {
+    map[m.name] = COLOR_PALETTE[i % COLOR_PALETTE.length]
+  })
+  return map
+}
+
 // 잡무 반복 주기 → 다음 날짜들 생성 (3개월치)
 export function generateTaskDates(startDate, repeat, repeatDays) {
   const dates = []

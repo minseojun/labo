@@ -1,16 +1,12 @@
 import React, { useState, useMemo } from 'react'
 import { DAYS } from '../../mockData'
-import { fmtDate, memberColor, generateTaskDates } from '../../utils'
+import { fmtDate, assignMemberColors, generateTaskDates } from '../../utils'
 
 export default function TaskCalendar({ tasks, members, onSelectDate, selectedDate }) {
   const [baseDate, setBaseDate] = useState(new Date())
   const today = new Date()
 
-  const colorMap = useMemo(() => {
-    const map = {}
-    members.forEach(m => { map[m.name] = memberColor(m.name) })
-    return map
-  }, [members])
+  const colorMap = useMemo(() => assignMemberColors(members), [members])
 
   const tasksByDate = useMemo(() => {
     const map = {}

@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react'
-import { fmtDate, memberColor, generateTaskDates } from '../../utils'
+import { fmtDate, memberColor, assignMemberColors, generateTaskDates } from '../../utils'
 import { toast } from '../../utils/toast'
 import TaskCalendar from './TaskCalendar'
 
@@ -14,7 +14,7 @@ function repeatLabel(task) {
 const initial = name => name?.trim().slice(-1) || '?'
 
 // 구성원별 잡무 분담 현황 — 공정한 분배를 한눈에
-function WorkloadPanel({ rows, total, nextAssignee }) {
+function WorkloadPanel({ rows, total, nextAssignee, colorMap }) {
   const max = Math.max(1, ...rows.map(r => r.count))
   return (
     <div className="wl-card">
@@ -24,10 +24,10 @@ function WorkloadPanel({ rows, total, nextAssignee }) {
       </div>
       {rows.map(m => (
         <div className="wl-row" key={m.id}>
-          <span className="wl-dot" style={{ background: memberColor(m.name) }} />
+          <span className="wl-dot" style={{ background: colorMap[m.name] || memberColor(m.name) }} />
           <span className="wl-name">{m.name}</span>
           <div className="wl-track">
-            <div className="wl-fill" style={{ width: `${(m.count / max) * 100}%`, background: memberColor(m.name) }} />
+            <div className="wl-fill" style={{ width: `${(m.count / max) * 100}%`, background: colorMap[m.name] || memberColor(m.name) }} />
           </div>
           <span className="wl-count">{m.count}</span>
         </div>
@@ -44,10 +44,12 @@ function WorkloadPanel({ rows, total, nextAssignee }) {
 
 export default function TaskSection({ labId, tasks, schedulesHook, members, user }) {
   const [showAdd, setShowAdd] = useState(false)
+  const [editTask, setEditTask] = useState(null)
   const [selectedDate, setSelectedDate] = useState(fmtDate(new Date()))
   const [form, setForm] = useState({ name: '', repeat: 'weekly', customDays: '', startDate: fmtDate(new Date()), note: '', assignee: 'auto' })
 
   const uniqueMembers = members.filter((m, i, arr) => arr.findIndex(x => x.id === m.id) === i)
+  const colorMap = assignMemberColors(uniqueMembers)
 
   const memberCounts = uniqueMembers.map(m => ({
     ...m, count: tasks.filter(t => t.assignee === m.name).length
@@ -102,10 +104,44 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
     }
   }
 
+  const openEdit = (task) => {
+    setEditTask({
+      id: task.id,
+      name: task.name,
+      repeat: task.repeat || 'weekly',
+      customDays: task.repeatDays ? String(task.repeatDays) : '',
+      startDate: task.startDate || task.date,
+      note: task.note || '',
+      assignee: task.assignee,
+    })
+  }
+
+  const saveEditTask = async () => {
+    const name = editTask.name.trim()
+    if (!name) { toast.error('잡무 이름을 입력해주세요.'); return }
+    if (name.length > 100) { toast.error('이름은 100자 이내로 입력해주세요.'); return }
+    if (editTask.repeat === 'custom' && (!editTask.customDays || Number(editTask.customDays) < 1)) {
+      toast.error('반복 일수를 입력해주세요.'); return
+    }
+    try {
+      await schedulesHook.update(editTask.id, {
+        name,
+        date: editTask.startDate, startDate: editTask.startDate,
+        assignee: editTask.assignee, repeat: editTask.repeat,
+        repeatDays: editTask.repeat === 'custom' ? Number(editTask.customDays) : null,
+        note: editTask.note.trim(),
+      })
+      setEditTask(null)
+      toast.success('잡무를 수정했어요')
+    } catch (e) {
+      // error shown by hook
+    }
+  }
+
   return (
     <div style={{ paddingBottom: 8 }}>
       {uniqueMembers.length > 0 && tasks.length > 0 && (
-        <WorkloadPanel rows={workloadRows} total={tasks.length} nextAssignee={getNextAssignee()} />
+        <WorkloadPanel rows={workloadRows} total={tasks.length} nextAssignee={getNextAssignee()} colorMap={colorMap} />
       )}
 
       <TaskCalendar
@@ -130,9 +166,9 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
             <div className="tsk-empty-text">이 날은 배정된 잡무가 없어요</div>
           </div>
         ) : tasksOnDate.map(task => {
-          const color = memberColor(task.assignee)
+          const color = colorMap[task.assignee] || memberColor(task.assignee)
           return (
-            <div key={task.id} className="tsk-card" style={{ '--accent': color }}>
+            <div key={task.id} className="tsk-card" style={{ '--accent': color, cursor: 'pointer' }} onClick={() => openEdit(task)}>
               <div className="tsk-avatar" style={{ background: `${color}1A`, color }}>{initial(task.assignee)}</div>
               <div className="tsk-body">
                 <div className="tsk-name">{task.name}</div>
@@ -143,7 +179,7 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
                 </div>
                 {task.note && <div className="tsk-note">{task.note}</div>}
               </div>
-              <button className="tsk-del" onClick={() => deleteTask(task)} aria-label="삭제">✕</button>
+              <button className="tsk-del" onClick={e => { e.stopPropagation(); deleteTask(task) }} aria-label="삭제">✕</button>
             </div>
           )
         })}
@@ -152,9 +188,9 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
           <>
             <div className="tsk-all-label">전체 잡무 {tasks.length}개</div>
             {tasks.map(task => {
-              const color = memberColor(task.assignee)
+              const color = colorMap[task.assignee] || memberColor(task.assignee)
               return (
-                <div key={task.id} className="tsk-row">
+                <div key={task.id} className="tsk-row" style={{ cursor: 'pointer' }} onClick={() => openEdit(task)}>
                   <span className="tsk-row-bar" style={{ background: color }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div className="tsk-row-name">{task.name}</div>
@@ -162,7 +198,7 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
                       {task.assignee} · {repeatLabel(task)} · {task.startDate}부터
                     </div>
                   </div>
-                  <button className="tsk-del" onClick={() => deleteTask(task)} aria-label="삭제">✕</button>
+                  <button className="tsk-del" onClick={e => { e.stopPropagation(); deleteTask(task) }} aria-label="삭제">✕</button>
                 </div>
               )
             })}
@@ -220,7 +256,7 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
                 </button>
                 {uniqueMembers.map(m => (
                   <button key={m.id} className="opt-pill"
-                    style={{ borderRadius: 20, borderColor: form.assignee === m.name ? memberColor(m.name) : 'var(--border)', background: form.assignee === m.name ? `${memberColor(m.name)}1A` : 'var(--card)', color: form.assignee === m.name ? memberColor(m.name) : 'var(--text2)' }}
+                    style={{ borderRadius: 20, borderColor: form.assignee === m.name ? colorMap[m.name] : 'var(--border)', background: form.assignee === m.name ? `${colorMap[m.name]}1A` : 'var(--card)', color: form.assignee === m.name ? colorMap[m.name] : 'var(--text2)' }}
                     onClick={() => setForm(p => ({ ...p, assignee: m.name }))}>
                     {m.name}
                   </button>
@@ -234,6 +270,69 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
                 placeholder="주의사항, 방법 등..." />
             </div>
             <button className="btn-primary" onClick={addTask}>잡무 등록하기</button>
+          </div>
+        </div>
+      )}
+
+      {editTask && (
+        <div className="sheet-backdrop" onClick={e => e.target === e.currentTarget && setEditTask(null)}>
+          <div className="sheet">
+            <div className="sheet-handle" />
+            <div className="sheet-title">잡무 수정</div>
+            <div className="form-group">
+              <label className="form-label">잡무 이름</label>
+              <input className="form-input" value={editTask.name} maxLength={100}
+                onChange={e => setEditTask(p => ({ ...p, name: e.target.value }))}
+                placeholder="예: 실험실 청소, 약품 주문" autoFocus />
+            </div>
+            <div className="form-group">
+              <label className="form-label">시작 날짜</label>
+              <input className="form-input" type="date" value={editTask.startDate}
+                onChange={e => setEditTask(p => ({ ...p, startDate: e.target.value }))} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">반복 주기</label>
+              <div className="opt-grid" style={{ marginBottom: 8 }}>
+                {[['weekly','매주','7일 간격'], ['biweekly','격주','14일 간격'], ['monthly','매월','30일 간격'], ['none','1회','반복 없음']].map(([v,l,sub]) => (
+                  <button key={v} className={`opt-card${editTask.repeat === v ? ' on' : ''}`} onClick={() => setEditTask(p => ({ ...p, repeat: v }))}>
+                    <div className="opt-card-t" style={{ color: editTask.repeat === v ? 'var(--green)' : 'var(--text)' }}>{l}</div>
+                    <div className="opt-card-s">{sub}</div>
+                  </button>
+                ))}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button className={`opt-pill${editTask.repeat === 'custom' ? ' on' : ''}`}
+                  style={{ whiteSpace: 'nowrap', borderColor: editTask.repeat === 'custom' ? 'var(--green)' : 'var(--border)', background: editTask.repeat === 'custom' ? 'var(--green-light)' : 'var(--card)', color: editTask.repeat === 'custom' ? 'var(--green)' : 'var(--text2)' }}
+                  onClick={() => setEditTask(p => ({ ...p, repeat: 'custom' }))}>직접 입력</button>
+                {editTask.repeat === 'custom' && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
+                    <input className="form-input" type="number" min="1" max="365" value={editTask.customDays}
+                      onChange={e => setEditTask(p => ({ ...p, customDays: e.target.value }))}
+                      placeholder="숫자" style={{ flex: 1 }} />
+                    <span style={{ fontSize: 13, color: 'var(--text2)', whiteSpace: 'nowrap' }}>일마다</span>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">담당자</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {uniqueMembers.map(m => (
+                  <button key={m.id} className="opt-pill"
+                    style={{ borderRadius: 20, borderColor: editTask.assignee === m.name ? colorMap[m.name] : 'var(--border)', background: editTask.assignee === m.name ? `${colorMap[m.name]}1A` : 'var(--card)', color: editTask.assignee === m.name ? colorMap[m.name] : 'var(--text2)' }}
+                    onClick={() => setEditTask(p => ({ ...p, assignee: m.name }))}>
+                    {m.name}{memberCounts.find(c => c.name === m.name)?.count === 0 && ' · 신규'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">메모 (선택)</label>
+              <input className="form-input" value={editTask.note} maxLength={300}
+                onChange={e => setEditTask(p => ({ ...p, note: e.target.value }))}
+                placeholder="주의사항, 방법 등..." />
+            </div>
+            <button className="btn-primary" onClick={saveEditTask}>저장하기</button>
           </div>
         </div>
       )}
