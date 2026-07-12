@@ -18,7 +18,7 @@ export default function HomeTab({ user, schedules, schedulesHook, supplies, noti
   // 홈 stats: 내 오늘 일정 수 (공용 + 나에게 할당)
   const myTodayCount = schedules.filter(s => {
     if (s.type === 'task') {
-      const dates = generateTaskDates(s.startDate || s.date, s.repeat, s.repeatDays)
+      const dates = generateTaskDates(s.startDate || s.date, s.repeat, s.repeatDays, s.endDate)
       return dates.includes(todayStr) && s.assignee === user.name
     }
     return s.date === todayStr && (s.type === 'lab' || s.assignee === user.name)
@@ -29,7 +29,7 @@ export default function HomeTab({ user, schedules, schedulesHook, supplies, noti
     .filter(s => {
       if (s.type === 'task') {
         if (s.assignee !== user.name) return false
-        const dates = generateTaskDates(s.startDate || s.date, s.repeat, s.repeatDays)
+        const dates = generateTaskDates(s.startDate || s.date, s.repeat, s.repeatDays, s.endDate)
         return dates.includes(todayStr)
       }
       return s.date === todayStr
@@ -44,7 +44,7 @@ export default function HomeTab({ user, schedules, schedulesHook, supplies, noti
   const upcomingMyTasks = schedules
     .filter(s => s.type === 'task' && s.assignee === user.name)
     .map(s => {
-      const dates = generateTaskDates(s.startDate || s.date, s.repeat, s.repeatDays)
+      const dates = generateTaskDates(s.startDate || s.date, s.repeat, s.repeatDays, s.endDate)
       const next = dates.find(d => d > todayStr)
       return next ? { ...s, nextDate: next } : null
     })

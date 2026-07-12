@@ -65,12 +65,16 @@ export function redistributeTasks(tasks, members) {
   return sortedTasks.map((t, i) => ({ id: t.id, assignee: sortedMembers[i % sortedMembers.length].name }))
 }
 
-// 잡무 반복 주기 → 다음 날짜들 생성 (3개월치)
-export function generateTaskDates(startDate, repeat, repeatDays) {
+// 잡무 반복 주기 → 다음 날짜들 생성 (기본 3개월치, endDate가 그보다 이르면 endDate까지만)
+export function generateTaskDates(startDate, repeat, repeatDays, endDate) {
   const dates = []
   const start = new Date(startDate)
   const end = new Date(start)
   end.setMonth(end.getMonth() + 3)
+  if (endDate) {
+    const endD = new Date(endDate)
+    if (endD < end) end.setTime(endD.getTime())
+  }
 
   if (repeat === 'monthly') {
     // 매번 원래 시작일 기준으로 월만 더해서 계산 — setMonth를 반복 누적하면
