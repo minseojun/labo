@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { signOut, updateProfile } from 'firebase/auth'
 import { doc, updateDoc, deleteDoc } from 'firebase/firestore'
 import { auth, db } from '../firebase'
-import { memberColor } from '../utils'
+import { memberColor, assignMemberColors } from '../utils'
 
 const AVATARS = ['🧑‍🔬','👩‍🔬','👨‍🔬','🧑‍💻','👩‍💻','👨‍💻','🧑‍🎓','👩‍🎓','👨‍🎓','🦊','🐧','🐻','🌱','⚗️','🔬','🧪','💡','🚀']
 const ROLES = ['학부인턴','학부연구생','대학원생','교수']
@@ -15,6 +15,7 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate 
   const [managingMember, setManagingMember] = useState(null)
 
   const uniqueMembers = members.filter((m, i, arr) => arr.findIndex(x => x.id === m.id) === i)
+  const colorMap = assignMemberColors(uniqueMembers)
   const isAdmin = user.role === '교수'
 
   const handleLogout = async () => {
@@ -104,7 +105,7 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate 
             {uniqueMembers.map(m => (
               <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', cursor: isAdmin && m.id !== user.id ? 'pointer' : 'default' }}
                 onClick={() => isAdmin && m.id !== user.id && setManagingMember(m)}>
-                <div style={{ width: 36, height: 36, borderRadius: '50%', background: `${memberColor(m.name)}20`, color: memberColor(m.name), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: m.avatar ? 20 : 13, fontWeight: 700, flexShrink: 0 }}>
+                <div style={{ width: 36, height: 36, borderRadius: '50%', background: `${colorMap[m.name] || memberColor(m.name)}20`, color: colorMap[m.name] || memberColor(m.name), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: m.avatar ? 20 : 13, fontWeight: 700, flexShrink: 0 }}>
                   {m.avatar || m.name?.slice(-1)}
                 </div>
                 <div style={{ flex: 1 }}>
@@ -145,7 +146,7 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate 
           <div style={{ background: 'var(--card)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 320, padding: 20, position: 'relative', zIndex: 1, animation: 'slideUp .25s ease' }}>
             <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--border)', margin: '0 auto 16px' }} />
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-              <div style={{ width: 48, height: 48, borderRadius: '50%', background: `${memberColor(managingMember.name)}20`, color: memberColor(managingMember.name), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: managingMember.avatar ? 26 : 16, fontWeight: 700 }}>
+              <div style={{ width: 48, height: 48, borderRadius: '50%', background: `${colorMap[managingMember.name] || memberColor(managingMember.name)}20`, color: colorMap[managingMember.name] || memberColor(managingMember.name), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: managingMember.avatar ? 26 : 16, fontWeight: 700 }}>
                 {managingMember.avatar || managingMember.name?.slice(-1)}
               </div>
               <div>
