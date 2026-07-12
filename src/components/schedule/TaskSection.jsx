@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react'
-import { fmtDate, memberColor, assignMemberColors, generateTaskDates } from '../../utils'
+import { fmtDate, memberColor, assignMemberColors, generateTaskDates, redistributeTasks } from '../../utils'
 import { toast } from '../../utils/toast'
 import TaskCalendar from './TaskCalendar'
 
@@ -14,7 +14,7 @@ function repeatLabel(task) {
 const initial = name => name?.trim().slice(-1) || '?'
 
 // 구성원별 잡무 분담 현황 — 공정한 분배를 한눈에
-function WorkloadPanel({ rows, total, nextAssignee, colorMap }) {
+function WorkloadPanel({ rows, total, nextAssignee, colorMap, onRedistribute }) {
   const max = Math.max(1, ...rows.map(r => r.count))
   return (
     <div className="wl-card">
@@ -38,6 +38,13 @@ function WorkloadPanel({ rows, total, nextAssignee, colorMap }) {
           <b>{nextAssignee}</b>
         </div>
       )}
+      <button onClick={onRedistribute} style={{
+        marginTop: 12, width: '100%', padding: '9px',
+        background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 10,
+        fontSize: 12.5, fontWeight: 600, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'inherit',
+      }}>
+        🔄 전체 잡무 다시 고르게 배정하기
+      </button>
     </div>
   )
 }
@@ -94,6 +101,18 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
     }
   }
 
+  const redistributeAll = async () => {
+    if (tasks.length === 0 || uniqueMembers.length === 0) return
+    if (!window.confirm('전체 잡무를 구성원 수에 맞게 다시 배정할까요? 기존 담당자 배정이 모두 바뀔 수 있어요.')) return
+    try {
+      const reassignments = redistributeTasks(tasks, uniqueMembers)
+      await Promise.all(reassignments.map(r => schedulesHook.update(r.id, { assignee: r.assignee })))
+      toast.success('잡무를 다시 배정했어요')
+    } catch (e) {
+      // error shown by hook
+    }
+  }
+
   const deleteTask = async (task) => {
     if (!window.confirm(`"${task.name}" 잡무를 삭제하시겠습니까?`)) return
     try {
@@ -141,7 +160,7 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
   return (
     <div style={{ paddingBottom: 8 }}>
       {uniqueMembers.length > 0 && tasks.length > 0 && (
-        <WorkloadPanel rows={workloadRows} total={tasks.length} nextAssignee={getNextAssignee()} colorMap={colorMap} />
+        <WorkloadPanel rows={workloadRows} total={tasks.length} nextAssignee={getNextAssignee()} colorMap={colorMap} onRedistribute={redistributeAll} />
       )}
 
       <TaskCalendar
