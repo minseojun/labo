@@ -74,7 +74,7 @@ export default function AuthScreen({ onLogin }) {
           name, role, joinedAt: serverTimestamp()
         })
 
-        // 새 멤버가 합류하면 기존 잡무 전체를 구성원 수 기준으로 다시 고르게 재배정
+        // 새 멤버가 합류하면 기존 잡무 전체를 전원이 돌아가며 맡도록 재배정
         try {
           const [tasksSnap, membersSnap] = await Promise.all([
             getDocs(query(collection(db, 'labs', labDoc.id, 'schedules'), where('type', '==', 'task'))),
@@ -84,7 +84,7 @@ export default function AuthScreen({ onLogin }) {
           const allMembers = membersSnap.docs.map(d => ({ id: d.id, ...d.data() }))
           const reassignments = redistributeTasks(tasks, allMembers)
           await Promise.all(reassignments.map(r =>
-            updateDoc(doc(db, 'labs', labDoc.id, 'schedules', r.id), { assignee: r.assignee })
+            updateDoc(doc(db, 'labs', labDoc.id, 'schedules', r.id), { assignee: r.rotation[0], rotation: r.rotation })
           ))
         } catch (redistErr) {
           console.error('잡무 재배정 실패:', redistErr)

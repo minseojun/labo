@@ -63,25 +63,39 @@ export function taskWorkload(task) {
   return generateTaskDates(task.startDate || task.date, task.repeat, task.repeatDays, task.endDate).length
 }
 
-// 잡무 전체를 구성원 사이에 "발생 횟수" 총합이 고르게 맞춰지도록 재배정.
-// 부담이 큰(자주 도는) 잡무부터 순서대로, 그 시점에 누적 부담이 가장 적은 사람에게 배정하는
-// 그리디(LPT) 방식 — 잡무 개수가 아니라 실제 반복 횟수 기준으로 균형을 맞춤
+// 잡무 하나를 담당하는 사람 목록 — 여러 명이면 발생할 때마다 순서대로 돌아가며 맡음.
+// rotation이 없는 옛날 데이터는 assignee 한 명짜리 rotation으로 취급해 하위 호환
+export function taskRotation(task) {
+  if (task.rotation && task.rotation.length > 0) return task.rotation
+  return task.assignee ? [task.assignee] : []
+}
+
+// 잡무의 각 발생일마다 실제로 누가 담당인지 계산 (라운드로빈으로 순서대로 순환)
+export function taskOccurrences(task) {
+  const rotation = taskRotation(task)
+  if (rotation.length === 0) return []
+  const dates = generateTaskDates(task.startDate || task.date, task.repeat, task.repeatDays, task.endDate)
+  return dates.map((date, i) => ({ date, assignee: rotation[i % rotation.length] }))
+}
+
+// 특정 날짜에 이 잡무를 실제로 담당하는 사람
+export function taskAssigneeOn(task, dateStr) {
+  return taskOccurrences(task).find(o => o.date === dateStr)?.assignee
+}
+
+// 한 사람이 이 잡무에서 실제로 맡게 되는 횟수 (라운드로빈으로 나뉜 만큼만 셈)
+export function memberWorkload(task, memberName) {
+  return taskOccurrences(task).filter(o => o.assignee === memberName).length
+}
+
+// 잡무 전체를 전원이 돌아가며 맡도록 재배정. 한 사람이 잡무 하나를 통째로 맡는
+// 1:1 방식은 반복 주기가 서로 다른 잡무 사이에서 부담이 크게 벌어질 수밖에 없어서,
+// 잡무마다 현재 구성원 전원을 로테이션으로 묶어 발생할 때마다 돌아가며 맡게 함
 export function redistributeTasks(tasks, members) {
   if (tasks.length === 0 || members.length === 0) return []
   const sortedMembers = [...members].sort((a, b) => (a.id || '').localeCompare(b.id || ''))
-  const loads = sortedMembers.map(() => 0)
-  const weighted = tasks
-    .map(t => ({ id: t.id, weight: taskWorkload(t) }))
-    .sort((a, b) => b.weight - a.weight || String(a.id).localeCompare(String(b.id)))
-
-  return weighted.map(t => {
-    let minIdx = 0
-    for (let i = 1; i < loads.length; i++) {
-      if (loads[i] < loads[minIdx]) minIdx = i
-    }
-    loads[minIdx] += t.weight
-    return { id: t.id, assignee: sortedMembers[minIdx].name }
-  })
+  const names = sortedMembers.map(m => m.name)
+  return tasks.map(t => ({ id: t.id, rotation: names }))
 }
 
 // 잡무 반복 주기 → 다음 날짜들 생성 (기본 3개월치, endDate가 그보다 이르면 endDate까지만)
