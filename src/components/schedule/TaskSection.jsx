@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react'
-import { fmtDate, memberColor, assignMemberColors, taskAssigneeOn, taskRotation, memberWorkload, redistributeTasks } from '../../utils'
+import { fmtDate, memberColor, assignMemberColors, taskAssigneeOn, taskRotation, memberWorkload, redistributeTasks, bestRotationOrder } from '../../utils'
 import { toast } from '../../utils/toast'
 import TaskCalendar from './TaskCalendar'
 
@@ -104,7 +104,10 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
     if (form.endDate && form.endDate < form.startDate) { toast.error('종료일은 시작일 이후여야 해요.'); return }
     if (uniqueMembers.length === 0) { toast.error('먼저 랩 구성원이 있어야 해요.'); return }
     const days = form.repeatDays ? Number(form.repeatDays) : 0
-    const rotation = form.assignees.length > 0 ? form.assignees : uniqueMembers.map(m => m.name)
+    const chosen = form.assignees.length > 0 ? form.assignees : uniqueMembers.map(m => m.name)
+    const draft = { startDate: form.startDate, repeat: days > 0 ? 'custom' : 'none', repeatDays: days > 0 ? days : null, endDate: form.endDate || null }
+    // 다른 잡무들과 최대한 안 겹치도록 순환 시작 순서를 고름 (인원 구성은 그대로, 순서만 조정)
+    const rotation = bestRotationOrder(draft, chosen, tasks)
     try {
       await schedulesHook.add({
         name, type: 'task',
@@ -163,7 +166,10 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
     if (editTask.repeatDays && Number(editTask.repeatDays) < 1) { toast.error('반복 주기는 1일 이상으로 입력해주세요.'); return }
     if (editTask.endDate && editTask.endDate < editTask.startDate) { toast.error('종료일은 시작일 이후여야 해요.'); return }
     const days = editTask.repeatDays ? Number(editTask.repeatDays) : 0
-    const rotation = editTask.assignees.length > 0 ? editTask.assignees : uniqueMembers.map(m => m.name)
+    const chosen = editTask.assignees.length > 0 ? editTask.assignees : uniqueMembers.map(m => m.name)
+    const draft = { startDate: editTask.startDate, repeat: days > 0 ? 'custom' : 'none', repeatDays: days > 0 ? days : null, endDate: editTask.endDate || null }
+    // 이 잡무를 뺀 나머지 잡무들과 최대한 안 겹치도록 순환 시작 순서를 고름
+    const rotation = bestRotationOrder(draft, chosen, tasks.filter(t => t.id !== editTask.id))
     try {
       await schedulesHook.update(editTask.id, {
         name,
