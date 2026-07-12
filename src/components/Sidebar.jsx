@@ -3,6 +3,7 @@ import { signOut, updateProfile } from 'firebase/auth'
 import { doc, updateDoc, deleteDoc } from 'firebase/firestore'
 import { auth, db } from '../firebase'
 import { memberColor, assignMemberColors } from '../utils'
+import { toast } from '../utils/toast'
 
 const AVATARS = ['🧑‍🔬','👩‍🔬','👨‍🔬','🧑‍💻','👩‍💻','👨‍💻','🧑‍🎓','👩‍🎓','👨‍🎓','🦊','🐧','🐻','🌱','⚗️','🔬','🧪','💡','🚀']
 const ROLES = ['학부인턴','학부연구생','대학원생','교수']
@@ -13,6 +14,16 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate 
   const [selAvatar, setSelAvatar] = useState(user.avatar || '🧑‍🔬')
   const [saving, setSaving] = useState(false)
   const [managingMember, setManagingMember] = useState(null)
+  const [showInfo, setShowInfo] = useState(null)
+  const [notifPermission, setNotifPermission] = useState(
+    typeof Notification !== 'undefined' ? Notification.permission : 'unsupported'
+  )
+
+  const requestNotify = async () => {
+    if (typeof Notification === 'undefined') return
+    const result = await Notification.requestPermission()
+    setNotifPermission(result)
+  }
 
   const uniqueMembers = members.filter((m, i, arr) => arr.findIndex(x => x.id === m.id) === i)
   const colorMap = assignMemberColors(uniqueMembers)
@@ -37,15 +48,27 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate 
   }
 
   const handleRoleChange = async (memberId, newRole) => {
-    await updateDoc(doc(db, 'labs', user.labId, 'members', memberId), { role: newRole })
-    await updateDoc(doc(db, 'users', memberId), { role: newRole })
-    setManagingMember(p => p ? { ...p, role: newRole } : p)
+    try {
+      // users/{memberId} 문서는 본인만 쓸 수 있어서(보안 규칙) 여기서 직접 못 고침 —
+      // members 문서만 바꾸면 해당 유저 세션이 실시간 감시로 스스로 동기화함
+      await updateDoc(doc(db, 'labs', user.labId, 'members', memberId), { role: newRole })
+      setManagingMember(p => p ? { ...p, role: newRole } : p)
+      toast.success('역할을 변경했어요')
+    } catch (e) {
+      console.error(e)
+      toast.error('역할 변경에 실패했어요.')
+    }
   }
 
   const handleKick = async (memberId) => {
     if (!window.confirm('이 구성원을 연구실에서 내보내시겠습니까?')) return
-    await deleteDoc(doc(db, 'labs', user.labId, 'members', memberId))
-    setManagingMember(null)
+    try {
+      await deleteDoc(doc(db, 'labs', user.labId, 'members', memberId))
+      setManagingMember(null)
+    } catch (e) {
+      console.error(e)
+      toast.error('내보내기에 실패했어요.')
+    }
   }
 
   const avatar = user.avatar || '🧑‍🔬'
@@ -123,8 +146,8 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate 
           {/* 설정 */}
           <div style={{ padding: '16px 20px' }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: .6, marginBottom: 10 }}>설정</div>
-            {[{ icon: '🔔', label: '알림 설정' }, { icon: '❓', label: '도움말' }, { icon: '📋', label: '서비스 정보' }].map(item => (
-              <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
+            {[{ key: 'notify', icon: '🔔', label: '알림 설정' }, { key: 'help', icon: '❓', label: '도움말' }, { key: 'about', icon: '📋', label: '서비스 정보' }].map(item => (
+              <div key={item.key} onClick={() => setShowInfo(item.key)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
                 <span style={{ fontSize: 18 }}>{item.icon}</span>
                 <span style={{ fontSize: 14 }}>{item.label}</span>
                 <span style={{ marginLeft: 'auto', color: 'var(--text2)' }}>›</span>
@@ -163,6 +186,69 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate 
             <button onClick={() => handleKick(managingMember.id)} style={{ width: '100%', padding: '12px', background: 'var(--red-light)', color: 'var(--red)', border: 'none', borderRadius: 10, fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>
               연구실에서 내보내기
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* 설정 상세 시트 (알림 설정 / 도움말 / 서비스 정보) */}
+      {showInfo && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 400, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+          <div onClick={() => setShowInfo(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
+          <div style={{ background: 'var(--card)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 320, padding: 20, position: 'relative', zIndex: 1, animation: 'slideUp .25s ease', maxHeight: '80vh', overflowY: 'auto' }}>
+            <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--border)', margin: '0 auto 16px' }} />
+
+            {showInfo === 'notify' && (
+              <>
+                <div style={{ fontWeight: 700, fontSize: 17, marginBottom: 12 }}>🔔 알림 설정</div>
+                <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.6, marginBottom: 16 }}>
+                  타이머가 끝나면 브라우저 알림으로 알려드려요.
+                </div>
+                <div style={{ padding: '10px 14px', background: 'var(--bg)', borderRadius: 10, fontSize: 13, marginBottom: 16 }}>
+                  현재 상태: <b>{
+                    notifPermission === 'granted' ? '허용됨' :
+                    notifPermission === 'denied' ? '차단됨' :
+                    notifPermission === 'unsupported' ? '이 브라우저는 지원하지 않음' : '아직 허용 안 함'
+                  }</b>
+                </div>
+                {notifPermission === 'default' && (
+                  <button className="btn-primary" onClick={requestNotify}>알림 켜기</button>
+                )}
+                {notifPermission === 'denied' && (
+                  <div style={{ fontSize: 12, color: 'var(--text2)' }}>브라우저 주소창 옆 사이트 설정에서 알림 차단을 해제한 뒤 새로고침해주세요.</div>
+                )}
+              </>
+            )}
+
+            {showInfo === 'help' && (
+              <>
+                <div style={{ fontWeight: 700, fontSize: 17, marginBottom: 14 }}>❓ 도움말</div>
+                {[
+                  ['🏠 홈', '오늘 일정과 잡무, 할 일, 공지를 한눈에 모아 보여줘요.'],
+                  ['📅 일정', '연구실 공용/개인 일정과 공지사항을 관리해요.'],
+                  ['🧹 잡무', '청소, 장비 점검 같은 반복 잡무를 구성원끼리 나눠서 관리해요. 잡무 카드를 탭하면 담당자를 바꿀 수 있어요.'],
+                  ['🔬 장비', '장비 사용 현황과 사용 이력을 기록해요.'],
+                  ['⏱ 타이머', '실험 타이머를 설정하고, 완료되면 알림을 받아요.'],
+                  ['📦 소모품', '시약·소모품 재고 상태를 신호등 색으로 관리해요.'],
+                ].map(([t, d]) => (
+                  <div key={t} style={{ marginBottom: 13 }}>
+                    <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 3 }}>{t}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.5 }}>{d}</div>
+                  </div>
+                ))}
+              </>
+            )}
+
+            {showInfo === 'about' && (
+              <>
+                <div style={{ fontWeight: 700, fontSize: 17, marginBottom: 4 }}>📋 서비스 정보</div>
+                <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 16 }}>LABO · 연구실 올인원 운영 플랫폼</div>
+                <div style={{ fontSize: 13, lineHeight: 2, color: 'var(--text2)' }}>
+                  <div>소속 연구실: <span style={{ color: 'var(--text)', fontWeight: 600 }}>{labInfo?.name || '연구실'}</span></div>
+                  <div>초대코드: <span style={{ color: 'var(--text)', fontWeight: 600 }}>{labInfo?.code}</span></div>
+                  <div>구성원: <span style={{ color: 'var(--text)', fontWeight: 600 }}>{uniqueMembers.length}명</span></div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

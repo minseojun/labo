@@ -5,8 +5,9 @@ import {
   signInWithPopup,
   updateProfile
 } from 'firebase/auth'
-import { doc, setDoc, getDoc, collection, query, where, getDocs, serverTimestamp } from 'firebase/firestore'
+import { doc, setDoc, getDoc, updateDoc, collection, query, where, getDocs, serverTimestamp } from 'firebase/firestore'
 import { auth, db, googleProvider } from '../firebase'
+import { redistributeTasks } from '../utils'
 
 function generateLabCode() {
   const prefix = ['NANO', 'BIO', 'CHEM', 'PHYS', 'MAT'][Math.floor(Math.random() * 5)]
@@ -72,6 +73,23 @@ export default function AuthScreen({ onLogin }) {
         await setDoc(doc(db, 'labs', labDoc.id, 'members', cred.user.uid), {
           name, role, joinedAt: serverTimestamp()
         })
+
+        // 새 멤버가 합류하면 기존 잡무 전체를 구성원 수 기준으로 다시 고르게 재배정
+        try {
+          const [tasksSnap, membersSnap] = await Promise.all([
+            getDocs(query(collection(db, 'labs', labDoc.id, 'schedules'), where('type', '==', 'task'))),
+            getDocs(collection(db, 'labs', labDoc.id, 'members')),
+          ])
+          const tasks = tasksSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+          const allMembers = membersSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+          const reassignments = redistributeTasks(tasks, allMembers)
+          await Promise.all(reassignments.map(r =>
+            updateDoc(doc(db, 'labs', labDoc.id, 'schedules', r.id), { assignee: r.assignee })
+          ))
+        } catch (redistErr) {
+          console.error('잡무 재배정 실패:', redistErr)
+        }
+
         onLogin({ id: cred.user.uid, ...userData, labId: labDoc.id })
 
       } else {
