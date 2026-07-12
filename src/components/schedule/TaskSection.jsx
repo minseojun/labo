@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react'
-import { fmtDate, memberColor, assignMemberColors, generateTaskDates, redistributeTasks } from '../../utils'
+import { fmtDate, memberColor, assignMemberColors, generateTaskDates, redistributeTasks, taskWorkload } from '../../utils'
 import { toast } from '../../utils/toast'
 import TaskCalendar from './TaskCalendar'
 
@@ -20,7 +20,10 @@ function WorkloadPanel({ rows, total, nextAssignee, colorMap, onRedistribute }) 
     <div className="wl-card">
       <div className="wl-top">
         <span className="wl-title">잡무 분담 현황</span>
-        <span className="wl-meta">담당 잡무 {total}개</span>
+        <span className="wl-meta">등록 잡무 {total}개</span>
+      </div>
+      <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: -8, marginBottom: 13 }}>
+        반복 주기를 반영해 다음 90일 예상 수행 횟수로 부담을 계산해요.
       </div>
       {rows.map(m => (
         <div className="wl-row" key={m.id}>
@@ -29,7 +32,7 @@ function WorkloadPanel({ rows, total, nextAssignee, colorMap, onRedistribute }) 
           <div className="wl-track">
             <div className="wl-fill" style={{ width: `${(m.count / max) * 100}%`, background: colorMap[m.name] || memberColor(m.name) }} />
           </div>
-          <span className="wl-count">{m.count}</span>
+          <span className="wl-count">{m.count}회</span>
         </div>
       ))}
       {nextAssignee && (
@@ -58,8 +61,9 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
   const uniqueMembers = members.filter((m, i, arr) => arr.findIndex(x => x.id === m.id) === i)
   const colorMap = assignMemberColors(uniqueMembers)
 
+  // count = "잡무 개수"가 아니라 다음 90일 기준 예상 수행 횟수 합 — 반복 주기가 짧을수록 더 크게 반영됨
   const memberCounts = uniqueMembers.map(m => ({
-    ...m, count: tasks.filter(t => t.assignee === m.name).length
+    ...m, count: tasks.filter(t => t.assignee === m.name).reduce((sum, t) => sum + taskWorkload(t), 0)
   })).sort((a, b) => a.count - b.count)
 
   const getNextAssignee = () => memberCounts.length > 0 ? memberCounts[0].name : user.name

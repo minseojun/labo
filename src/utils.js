@@ -56,13 +56,32 @@ export function assignMemberColors(members) {
   return map
 }
 
-// 새 멤버가 합류했을 때 기존 잡무 전체를 구성원 수 기준으로 고르게 재배정
-// (id 기준 안정 정렬 후 순서대로 라운드로빈 — 누가 새로 왔는지 상관없이 결과가 결정적)
+// 잡무 하나의 실제 "부담"을 계산 — 다음 90일(3개월) 동안 몇 번 발생하는지로 측정.
+// 잡무 개수를 1개씩 세면 2일마다 도는 잡무와 14일마다 도는 잡무가 똑같이 취급되는데,
+// 실제로는 전자가 훨씬 자주 돌아오므로 반복 횟수 기준으로 부담을 재야 공평함
+export function taskWorkload(task) {
+  return generateTaskDates(task.startDate || task.date, task.repeat, task.repeatDays, task.endDate).length
+}
+
+// 잡무 전체를 구성원 사이에 "발생 횟수" 총합이 고르게 맞춰지도록 재배정.
+// 부담이 큰(자주 도는) 잡무부터 순서대로, 그 시점에 누적 부담이 가장 적은 사람에게 배정하는
+// 그리디(LPT) 방식 — 잡무 개수가 아니라 실제 반복 횟수 기준으로 균형을 맞춤
 export function redistributeTasks(tasks, members) {
   if (tasks.length === 0 || members.length === 0) return []
   const sortedMembers = [...members].sort((a, b) => (a.id || '').localeCompare(b.id || ''))
-  const sortedTasks = [...tasks].sort((a, b) => (a.id || '').localeCompare(b.id || ''))
-  return sortedTasks.map((t, i) => ({ id: t.id, assignee: sortedMembers[i % sortedMembers.length].name }))
+  const loads = sortedMembers.map(() => 0)
+  const weighted = tasks
+    .map(t => ({ id: t.id, weight: taskWorkload(t) }))
+    .sort((a, b) => b.weight - a.weight || String(a.id).localeCompare(String(b.id)))
+
+  return weighted.map(t => {
+    let minIdx = 0
+    for (let i = 1; i < loads.length; i++) {
+      if (loads[i] < loads[minIdx]) minIdx = i
+    }
+    loads[minIdx] += t.weight
+    return { id: t.id, assignee: sortedMembers[minIdx].name }
+  })
 }
 
 // 잡무 반복 주기 → 다음 날짜들 생성 (기본 3개월치, endDate가 그보다 이르면 endDate까지만)
