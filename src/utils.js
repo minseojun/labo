@@ -88,14 +88,95 @@ export function memberWorkload(task, memberName) {
   return taskOccurrences(task).filter(o => o.assignee === memberName).length
 }
 
+function addDays(dateStr, delta) {
+  const d = new Date(dateStr)
+  d.setDate(d.getDate() + delta)
+  return fmtDate(d)
+}
+
+function permutations(arr) {
+  if (arr.length <= 1) return [arr]
+  const result = []
+  for (let i = 0; i < arr.length; i++) {
+    const rest = [...arr.slice(0, i), ...arr.slice(i + 1)]
+    for (const p of permutations(rest)) result.push([arr[i], ...p])
+  }
+  return result
+}
+
+function shuffled(arr) {
+  const a = [...arr]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
+// 인원이 적으면(≤6명, ≤720가지) 순서를 전수조사, 많으면 계산량 때문에 무작위 셔플 다수로 대체
+function candidateOrders(baseOrder) {
+  if (baseOrder.length <= 6) return permutations(baseOrder)
+  const candidates = [baseOrder]
+  for (let i = 0; i < 300; i++) candidates.push(shuffled(baseOrder))
+  return candidates
+}
+
+// rotation 인원 구성은 그대로 두고 "순환 순서"만 바꿔서, 이미 정해진 다른 잡무들과
+// 같은 날 겹치거나 하루 간격으로 붙는 걸 최대한 피함. 같은 날 중복과 연속일을 똑같은
+// 무게로 벌점을 줘야 함 — 한쪽에 더 무게를 두면 그쪽만 사라지고 반대쪽으로 몰림
+// (예: 같은 날 중복을 훨씬 무겁게 벌점 주면 그건 0이 되지만 연속일이 오히려 폭증함).
+// 인원 구성 자체를 바꾸지 않으므로 각자의 전체 담당 횟수(공평성)는 그대로 유지됨
+export function bestRotationOrder(task, baseOrder, otherTasks) {
+  if (baseOrder.length <= 1) return [...baseOrder]
+
+  const occupied = {} // 사람 이름 -> 이미 다른 잡무로 잡혀있는 날짜 Set
+  otherTasks.forEach(t => {
+    taskOccurrences(t).forEach(({ date, assignee }) => {
+      if (!occupied[assignee]) occupied[assignee] = new Set()
+      occupied[assignee].add(date)
+    })
+  })
+
+  let bestOrder = baseOrder
+  let bestScore = Infinity
+  for (const order of candidateOrders(baseOrder)) {
+    let score = 0
+    taskOccurrences({ ...task, rotation: order }).forEach(({ date, assignee }) => {
+      const taken = occupied[assignee]
+      if (!taken) return
+      if (taken.has(date)) score += 1
+      if (taken.has(addDays(date, -1))) score += 1
+      if (taken.has(addDays(date, 1))) score += 1
+    })
+    if (score < bestScore) { bestScore = score; bestOrder = order }
+  }
+  return bestOrder
+}
+
 // 잡무 전체를 전원이 돌아가며 맡도록 재배정. 한 사람이 잡무 하나를 통째로 맡는
 // 1:1 방식은 반복 주기가 서로 다른 잡무 사이에서 부담이 크게 벌어질 수밖에 없어서,
-// 잡무마다 현재 구성원 전원을 로테이션으로 묶어 발생할 때마다 돌아가며 맡게 함
+// 잡무마다 현재 구성원 전원을 로테이션으로 묶어 발생할 때마다 돌아가며 맡게 함.
+// 순환이 시작되는 순서는 잡무별로 겹침·연속일이 가장 적은 쪽을 골라서, 한 사람이
+// 하루에 잡무 두 개를 몰아 받거나 이틀 연속으로 걸리는 일을 최대한 줄임.
+// 한 번 훑고 끝내지 않고 몇 차례 다시 훑어(좌표 하강) 잡무끼리 서로 맞춰가게 함
 export function redistributeTasks(tasks, members) {
   if (tasks.length === 0 || members.length === 0) return []
   const sortedMembers = [...members].sort((a, b) => (a.id || '').localeCompare(b.id || ''))
-  const names = sortedMembers.map(m => m.name)
-  return tasks.map(t => ({ id: t.id, rotation: names }))
+  const baseOrder = sortedMembers.map(m => m.name)
+
+  // 자주 도는(부담이 큰) 잡무일수록 겹칠 여지가 많으니 먼저 자리를 잡아줌
+  const orderByFreq = [...tasks].sort((a, b) => taskWorkload(b) - taskWorkload(a) || String(a.id).localeCompare(String(b.id)))
+
+  let current = tasks.map(t => ({ ...t, rotation: baseOrder }))
+  const PASSES = 3
+  for (let pass = 0; pass < PASSES; pass++) {
+    orderByFreq.forEach(t => {
+      const idx = current.findIndex(x => x.id === t.id)
+      const rotation = bestRotationOrder(t, baseOrder, current.filter(x => x.id !== t.id))
+      current[idx] = { ...current[idx], rotation }
+    })
+  }
+  return current.map(t => ({ id: t.id, rotation: t.rotation }))
 }
 
 // 잡무 반복 주기 → 다음 날짜들 생성 (기본 3개월치, endDate가 그보다 이르면 endDate까지만)
