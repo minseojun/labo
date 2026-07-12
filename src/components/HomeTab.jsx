@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { DAYS } from '../mockData'
-import { fmtDate, formatTime, generateTaskDates } from '../utils'
+import { fmtDate, formatTime, taskAssigneeOn, taskOccurrences } from '../utils'
 
 const typeStyle = {
   lab:  { bar: 'var(--green)',  chip: 'chip-green',  label: '공용' },
@@ -16,37 +16,35 @@ export default function HomeTab({ user, schedules, schedulesHook, supplies, noti
   const [todoDate, setTodoDate] = useState(todayStr)
 
   // 홈 stats: 내 오늘 일정 수 (공용 + 나에게 할당)
+  // 잡무는 하루 여러 명이 순환해서 맡을 수 있으므로, 오늘 실제로 이 잡무를 맡는 사람이 나인지 확인
   const myTodayCount = schedules.filter(s => {
     if (s.type === 'task') {
-      const dates = generateTaskDates(s.startDate || s.date, s.repeat, s.repeatDays, s.endDate)
-      return dates.includes(todayStr) && s.assignee === user.name
+      return taskAssigneeOn(s, todayStr) === user.name
     }
     return s.date === todayStr && (s.type === 'lab' || s.assignee === user.name)
   }).length
 
-  // 오늘 섹션: 전체 (잡무는 내 것만)
+  // 오늘 섹션: 전체 (잡무는 오늘 실제 담당인 것만)
   const todayItems = schedules
     .filter(s => {
       if (s.type === 'task') {
-        if (s.assignee !== user.name) return false
-        const dates = generateTaskDates(s.startDate || s.date, s.repeat, s.repeatDays, s.endDate)
-        return dates.includes(todayStr)
+        return taskAssigneeOn(s, todayStr) === user.name
       }
       return s.date === todayStr
     })
+    .map(s => s.type === 'task' ? { ...s, assignee: user.name } : s)
     .sort((a, b) => {
       if (a.time && !b.time) return -1
       if (!a.time && b.time) return 1
       return (a.time || '').localeCompare(b.time || '')
     })
 
-  // 내 예정 잡무 (오늘 이후)
+  // 내 예정 잡무 (오늘 이후, 순환상 다음 내 차례)
   const upcomingMyTasks = schedules
-    .filter(s => s.type === 'task' && s.assignee === user.name)
+    .filter(s => s.type === 'task')
     .map(s => {
-      const dates = generateTaskDates(s.startDate || s.date, s.repeat, s.repeatDays, s.endDate)
-      const next = dates.find(d => d > todayStr)
-      return next ? { ...s, nextDate: next } : null
+      const next = taskOccurrences(s).find(o => o.date > todayStr && o.assignee === user.name)
+      return next ? { ...s, nextDate: next.date } : null
     })
     .filter(Boolean)
     .sort((a, b) => a.nextDate.localeCompare(b.nextDate))

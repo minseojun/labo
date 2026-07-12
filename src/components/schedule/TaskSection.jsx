@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react'
-import { fmtDate, memberColor, assignMemberColors, generateTaskDates, redistributeTasks, taskWorkload } from '../../utils'
+import { fmtDate, memberColor, assignMemberColors, taskAssigneeOn, taskRotation, memberWorkload, redistributeTasks } from '../../utils'
 import { toast } from '../../utils/toast'
 import TaskCalendar from './TaskCalendar'
 
@@ -11,10 +11,17 @@ function repeatLabel(task) {
   return '1회'
 }
 
+// 담당자가 여러 명이면 "이름, 이름 순환"으로 표시
+function assigneeLabel(task) {
+  const rotation = taskRotation(task)
+  if (rotation.length <= 1) return rotation[0] || '-'
+  return `${rotation.join(', ')} 순환`
+}
+
 const initial = name => name?.trim().slice(-1) || '?'
 
 // 구성원별 잡무 분담 현황 — 공정한 분배를 한눈에
-function WorkloadPanel({ rows, total, nextAssignee, colorMap, onRedistribute }) {
+function WorkloadPanel({ rows, total, colorMap, onRedistribute }) {
   const max = Math.max(1, ...rows.map(r => r.count))
   return (
     <div className="wl-card">
@@ -23,7 +30,7 @@ function WorkloadPanel({ rows, total, nextAssignee, colorMap, onRedistribute }) 
         <span className="wl-meta">등록 잡무 {total}개</span>
       </div>
       <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: -8, marginBottom: 13 }}>
-        반복 주기를 반영해 다음 90일 예상 수행 횟수로 부담을 계산해요.
+        같은 잡무를 여러 명이 나눠 맡는 경우까지 반영해, 다음 90일 예상 수행 횟수로 부담을 계산해요.
       </div>
       {rows.map(m => (
         <div className="wl-row" key={m.id}>
@@ -35,12 +42,6 @@ function WorkloadPanel({ rows, total, nextAssignee, colorMap, onRedistribute }) 
           <span className="wl-count">{m.count}회</span>
         </div>
       ))}
-      {nextAssignee && (
-        <div className="wl-next">
-          <span>자동 배정 시 다음 담당</span>
-          <b>{nextAssignee}</b>
-        </div>
-      )}
       <button onClick={onRedistribute} style={{
         marginTop: 12, width: '100%', padding: '9px',
         background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 10,
@@ -56,30 +57,44 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
   const [showAdd, setShowAdd] = useState(false)
   const [editTask, setEditTask] = useState(null)
   const [selectedDate, setSelectedDate] = useState(fmtDate(new Date()))
-  const [form, setForm] = useState({ name: '', repeatDays: '', startDate: fmtDate(new Date()), endDate: '', note: '', assignee: '' })
+  const [form, setForm] = useState({ name: '', repeatDays: '', startDate: fmtDate(new Date()), endDate: '', note: '', assignees: [] })
 
   const uniqueMembers = members.filter((m, i, arr) => arr.findIndex(x => x.id === m.id) === i)
   const colorMap = assignMemberColors(uniqueMembers)
 
-  // count = "잡무 개수"가 아니라 다음 90일 기준 예상 수행 횟수 합 — 반복 주기가 짧을수록 더 크게 반영됨
+  // count = "잡무 개수"가 아니라 다음 90일 기준 예상 수행 횟수 합 — 반복 주기가 짧을수록,
+  // 그 잡무를 적은 인원이 나눠 맡을수록 더 크게 반영됨 (여러 명이 순환하면 그만큼 나뉘어 계산)
   const memberCounts = uniqueMembers.map(m => ({
-    ...m, count: tasks.filter(t => t.assignee === m.name).reduce((sum, t) => sum + taskWorkload(t), 0)
+    ...m, count: tasks.reduce((sum, t) => sum + memberWorkload(t, m.name), 0)
   })).sort((a, b) => a.count - b.count)
-
-  const getNextAssignee = () => memberCounts.length > 0 ? memberCounts[0].name : user.name
 
   // 분담 현황은 부담 큰 순으로 보여줘서 불균형이 바로 보이게
   const workloadRows = [...memberCounts].sort((a, b) => b.count - a.count)
 
   const tasksOnDate = useMemo(() => {
-    return tasks.filter(task => {
-      const dates = generateTaskDates(task.startDate || task.date, task.repeat, task.repeatDays, task.endDate)
-      return dates.includes(selectedDate)
-    })
+    return tasks
+      .map(task => {
+        const todayAssignee = taskAssigneeOn(task, selectedDate)
+        return todayAssignee ? { ...task, todayAssignee } : null
+      })
+      .filter(Boolean)
   }, [tasks, selectedDate])
 
   const isToday = selectedDate === fmtDate(new Date())
   const dateLabel = isToday ? '오늘' : selectedDate.replace(/^\d{4}-/, '').replace('-', '. ')
+
+  const toggleFormAssignee = (name) => {
+    setForm(p => ({
+      ...p,
+      assignees: p.assignees.includes(name) ? p.assignees.filter(n => n !== name) : [...p.assignees, name]
+    }))
+  }
+  const toggleEditAssignee = (name) => {
+    setEditTask(p => ({
+      ...p,
+      assignees: p.assignees.includes(name) ? p.assignees.filter(n => n !== name) : [...p.assignees, name]
+    }))
+  }
 
   const addTask = async () => {
     const name = form.name.trim()
@@ -87,19 +102,21 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
     if (name.length > 100) { toast.error('이름은 100자 이내로 입력해주세요.'); return }
     if (form.repeatDays && Number(form.repeatDays) < 1) { toast.error('반복 주기는 1일 이상으로 입력해주세요.'); return }
     if (form.endDate && form.endDate < form.startDate) { toast.error('종료일은 시작일 이후여야 해요.'); return }
+    if (uniqueMembers.length === 0) { toast.error('먼저 랩 구성원이 있어야 해요.'); return }
     const days = form.repeatDays ? Number(form.repeatDays) : 0
-    const assignee = form.assignee || getNextAssignee()
+    const rotation = form.assignees.length > 0 ? form.assignees : uniqueMembers.map(m => m.name)
     try {
       await schedulesHook.add({
         name, type: 'task',
         date: form.startDate, startDate: form.startDate, endDate: form.endDate || null, time: '',
-        assignee, repeat: days > 0 ? 'custom' : 'none',
+        assignee: rotation[0], rotation,
+        repeat: days > 0 ? 'custom' : 'none',
         repeatDays: days > 0 ? days : null,
         note: form.note.trim(),
       })
       setShowAdd(false)
-      setForm({ name: '', repeatDays: '', startDate: fmtDate(new Date()), endDate: '', note: '', assignee: '' })
-      toast.success(`${assignee} 담당으로 배정됐어요`)
+      setForm({ name: '', repeatDays: '', startDate: fmtDate(new Date()), endDate: '', note: '', assignees: [] })
+      toast.success(rotation.length > 1 ? `${rotation.length}명이 돌아가며 맡아요` : `${rotation[0]} 담당으로 배정됐어요`)
     } catch (e) {
       // error shown by hook
     }
@@ -107,10 +124,10 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
 
   const redistributeAll = async () => {
     if (tasks.length === 0 || uniqueMembers.length === 0) return
-    if (!window.confirm('전체 잡무를 구성원 수에 맞게 다시 배정할까요? 기존 담당자 배정이 모두 바뀔 수 있어요.')) return
+    if (!window.confirm('전체 잡무를 모든 구성원이 돌아가며 맡도록 재배정할까요? 기존 담당자 배정이 모두 바뀔 수 있어요.')) return
     try {
       const reassignments = redistributeTasks(tasks, uniqueMembers)
-      await Promise.all(reassignments.map(r => schedulesHook.update(r.id, { assignee: r.assignee })))
+      await Promise.all(reassignments.map(r => schedulesHook.update(r.id, { assignee: r.rotation[0], rotation: r.rotation })))
       toast.success('잡무를 다시 배정했어요')
     } catch (e) {
       // error shown by hook
@@ -135,7 +152,7 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
       startDate: task.startDate || task.date,
       endDate: task.endDate || '',
       note: task.note || '',
-      assignee: task.assignee,
+      assignees: taskRotation(task),
     })
   }
 
@@ -146,12 +163,13 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
     if (editTask.repeatDays && Number(editTask.repeatDays) < 1) { toast.error('반복 주기는 1일 이상으로 입력해주세요.'); return }
     if (editTask.endDate && editTask.endDate < editTask.startDate) { toast.error('종료일은 시작일 이후여야 해요.'); return }
     const days = editTask.repeatDays ? Number(editTask.repeatDays) : 0
-    const assignee = editTask.assignee || getNextAssignee()
+    const rotation = editTask.assignees.length > 0 ? editTask.assignees : uniqueMembers.map(m => m.name)
     try {
       await schedulesHook.update(editTask.id, {
         name,
         date: editTask.startDate, startDate: editTask.startDate, endDate: editTask.endDate || null,
-        assignee, repeat: days > 0 ? 'custom' : 'none',
+        assignee: rotation[0], rotation,
+        repeat: days > 0 ? 'custom' : 'none',
         repeatDays: days > 0 ? days : null,
         note: editTask.note.trim(),
       })
@@ -165,7 +183,7 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
   return (
     <div style={{ paddingBottom: 8 }}>
       {uniqueMembers.length > 0 && tasks.length > 0 && (
-        <WorkloadPanel rows={workloadRows} total={tasks.length} nextAssignee={getNextAssignee()} colorMap={colorMap} onRedistribute={redistributeAll} />
+        <WorkloadPanel rows={workloadRows} total={tasks.length} colorMap={colorMap} onRedistribute={redistributeAll} />
       )}
 
       <TaskCalendar
@@ -190,14 +208,16 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
             <div className="tsk-empty-text">이 날은 배정된 잡무가 없어요</div>
           </div>
         ) : tasksOnDate.map(task => {
-          const color = colorMap[task.assignee] || memberColor(task.assignee)
+          const color = colorMap[task.todayAssignee] || memberColor(task.todayAssignee)
+          const rotation = taskRotation(task)
           return (
             <div key={task.id} className="tsk-card" style={{ '--accent': color, cursor: 'pointer' }} onClick={() => openEdit(task)}>
-              <div className="tsk-avatar" style={{ background: `${color}1A`, color }}>{initial(task.assignee)}</div>
+              <div className="tsk-avatar" style={{ background: `${color}1A`, color }}>{initial(task.todayAssignee)}</div>
               <div className="tsk-body">
                 <div className="tsk-name">{task.name}</div>
                 <div className="tsk-metarow">
-                  <span className="tsk-strong" style={{ color }}>{task.assignee}</span>
+                  <span className="tsk-strong" style={{ color }}>{task.todayAssignee}</span>
+                  {rotation.length > 1 && <span style={{ fontSize: 10, color: 'var(--text3)' }}>({rotation.length}명 순환)</span>}
                   <span className="tsk-sep" />
                   <span>{repeatLabel(task)}</span>
                 </div>
@@ -212,14 +232,15 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
           <>
             <div className="tsk-all-label">전체 잡무 {tasks.length}개</div>
             {tasks.map(task => {
-              const color = colorMap[task.assignee] || memberColor(task.assignee)
+              const rotation = taskRotation(task)
+              const color = colorMap[rotation[0]] || memberColor(rotation[0])
               return (
                 <div key={task.id} className="tsk-row" style={{ cursor: 'pointer' }} onClick={() => openEdit(task)}>
                   <span className="tsk-row-bar" style={{ background: color }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div className="tsk-row-name">{task.name}</div>
                     <div className="tsk-row-meta">
-                      {task.assignee} · {repeatLabel(task)} · {task.startDate}부터{task.endDate ? ` ${task.endDate}까지` : ''}
+                      {assigneeLabel(task)} · {repeatLabel(task)} · {task.startDate}부터{task.endDate ? ` ${task.endDate}까지` : ''}
                     </div>
                   </div>
                   <button className="tsk-del" onClick={e => { e.stopPropagation(); deleteTask(task) }} aria-label="삭제">✕</button>
@@ -263,22 +284,22 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
               <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>비워두거나 0이면 반복 없이 한 번만 등록돼요.</div>
             </div>
             <div className="form-group">
-              <label className="form-label">담당자</label>
+              <label className="form-label">담당자 (여러 명 고르면 발생할 때마다 돌아가며 맡아요)</label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 <button type="button" className="opt-pill"
                   style={{ borderRadius: 20, borderColor: 'var(--green)', background: 'var(--green-light)', color: 'var(--green)', fontWeight: 700 }}
-                  onClick={() => setForm(p => ({ ...p, assignee: getNextAssignee() }))}>
-                  🔀 자동 배정
+                  onClick={() => setForm(p => ({ ...p, assignees: uniqueMembers.map(m => m.name) }))}>
+                  🔀 전체 인원
                 </button>
                 {uniqueMembers.map(m => (
-                  <button key={m.id} className="opt-pill"
-                    style={{ borderRadius: 20, borderColor: form.assignee === m.name ? colorMap[m.name] : 'var(--border)', background: form.assignee === m.name ? `${colorMap[m.name]}1A` : 'var(--card)', color: form.assignee === m.name ? colorMap[m.name] : 'var(--text2)' }}
-                    onClick={() => setForm(p => ({ ...p, assignee: m.name }))}>
-                    {m.name}
+                  <button key={m.id} type="button" className="opt-pill"
+                    style={{ borderRadius: 20, borderColor: form.assignees.includes(m.name) ? colorMap[m.name] : 'var(--border)', background: form.assignees.includes(m.name) ? `${colorMap[m.name]}1A` : 'var(--card)', color: form.assignees.includes(m.name) ? colorMap[m.name] : 'var(--text2)' }}
+                    onClick={() => toggleFormAssignee(m.name)}>
+                    {form.assignees.includes(m.name) ? '✓ ' : ''}{m.name}
                   </button>
                 ))}
               </div>
-              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>선택하지 않으면 담당 잡무가 가장 적은 멤버로 자동 배정돼요.</div>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>아무도 선택하지 않으면 전체 인원이 돌아가며 맡아요.</div>
             </div>
             <div className="form-group">
               <label className="form-label">메모 (선택)</label>
@@ -324,22 +345,22 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
               <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>비워두거나 0이면 반복 없이 한 번만 등록돼요.</div>
             </div>
             <div className="form-group">
-              <label className="form-label">담당자</label>
+              <label className="form-label">담당자 (여러 명 고르면 발생할 때마다 돌아가며 맡아요)</label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 <button type="button" className="opt-pill"
                   style={{ borderRadius: 20, borderColor: 'var(--green)', background: 'var(--green-light)', color: 'var(--green)', fontWeight: 700 }}
-                  onClick={() => setEditTask(p => ({ ...p, assignee: getNextAssignee() }))}>
-                  🔀 자동 배정
+                  onClick={() => setEditTask(p => ({ ...p, assignees: uniqueMembers.map(m => m.name) }))}>
+                  🔀 전체 인원
                 </button>
                 {uniqueMembers.map(m => (
-                  <button key={m.id} className="opt-pill"
-                    style={{ borderRadius: 20, borderColor: editTask.assignee === m.name ? colorMap[m.name] : 'var(--border)', background: editTask.assignee === m.name ? `${colorMap[m.name]}1A` : 'var(--card)', color: editTask.assignee === m.name ? colorMap[m.name] : 'var(--text2)' }}
-                    onClick={() => setEditTask(p => ({ ...p, assignee: m.name }))}>
-                    {m.name}{memberCounts.find(c => c.name === m.name)?.count === 0 && ' · 신규'}
+                  <button key={m.id} type="button" className="opt-pill"
+                    style={{ borderRadius: 20, borderColor: editTask.assignees.includes(m.name) ? colorMap[m.name] : 'var(--border)', background: editTask.assignees.includes(m.name) ? `${colorMap[m.name]}1A` : 'var(--card)', color: editTask.assignees.includes(m.name) ? colorMap[m.name] : 'var(--text2)' }}
+                    onClick={() => toggleEditAssignee(m.name)}>
+                    {editTask.assignees.includes(m.name) ? '✓ ' : ''}{m.name}{memberCounts.find(c => c.name === m.name)?.count === 0 && ' · 신규'}
                   </button>
                 ))}
               </div>
-              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>선택하지 않으면 담당 잡무가 가장 적은 멤버로 자동 배정돼요.</div>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>아무도 선택하지 않으면 전체 인원이 돌아가며 맡아요.</div>
             </div>
             <div className="form-group">
               <label className="form-label">메모 (선택)</label>

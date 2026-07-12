@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react'
 import { DAYS } from '../../mockData'
-import { fmtDate, assignMemberColors, generateTaskDates } from '../../utils'
+import { fmtDate, assignMemberColors, taskOccurrences } from '../../utils'
 
 export default function TaskCalendar({ tasks, members, onSelectDate, selectedDate }) {
   const [baseDate, setBaseDate] = useState(new Date())
@@ -11,11 +11,10 @@ export default function TaskCalendar({ tasks, members, onSelectDate, selectedDat
   const tasksByDate = useMemo(() => {
     const map = {}
     tasks.forEach(task => {
-      const dates = generateTaskDates(task.startDate || task.date, task.repeat, task.repeatDays, task.endDate)
-      dates.forEach(d => {
+      taskOccurrences(task).forEach(({ date: d, assignee }) => {
         if (!map[d]) map[d] = []
         if (!map[d].find(t => t.taskId === task.id)) {
-          map[d].push({ taskId: task.id, name: task.name, assignee: task.assignee, color: colorMap[task.assignee] || '#999' })
+          map[d].push({ taskId: task.id, name: task.name, assignee, color: colorMap[assignee] || '#999' })
         }
       })
     })
