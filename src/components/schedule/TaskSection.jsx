@@ -53,7 +53,7 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
   const [showAdd, setShowAdd] = useState(false)
   const [editTask, setEditTask] = useState(null)
   const [selectedDate, setSelectedDate] = useState(fmtDate(new Date()))
-  const [form, setForm] = useState({ name: '', repeat: 'weekly', customDays: '', startDate: fmtDate(new Date()), note: '', assignee: 'auto' })
+  const [form, setForm] = useState({ name: '', repeatDays: '', startDate: fmtDate(new Date()), endDate: '', note: '', assignee: '' })
 
   const uniqueMembers = members.filter((m, i, arr) => arr.findIndex(x => x.id === m.id) === i)
   const colorMap = assignMemberColors(uniqueMembers)
@@ -69,7 +69,7 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
 
   const tasksOnDate = useMemo(() => {
     return tasks.filter(task => {
-      const dates = generateTaskDates(task.startDate || task.date, task.repeat, task.repeatDays)
+      const dates = generateTaskDates(task.startDate || task.date, task.repeat, task.repeatDays, task.endDate)
       return dates.includes(selectedDate)
     })
   }, [tasks, selectedDate])
@@ -81,20 +81,21 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
     const name = form.name.trim()
     if (!name) { toast.error('잡무 이름을 입력해주세요.'); return }
     if (name.length > 100) { toast.error('이름은 100자 이내로 입력해주세요.'); return }
-    if (form.repeat === 'custom' && (!form.customDays || Number(form.customDays) < 1)) {
-      toast.error('반복 일수를 입력해주세요.'); return
-    }
-    const assignee = form.assignee === 'auto' ? getNextAssignee() : form.assignee
+    if (!form.assignee) { toast.error('담당자를 선택해주세요.'); return }
+    if (form.repeatDays && Number(form.repeatDays) < 1) { toast.error('반복 주기는 1일 이상으로 입력해주세요.'); return }
+    if (form.endDate && form.endDate < form.startDate) { toast.error('종료일은 시작일 이후여야 해요.'); return }
+    const days = form.repeatDays ? Number(form.repeatDays) : 0
+    const assignee = form.assignee
     try {
       await schedulesHook.add({
         name, type: 'task',
-        date: form.startDate, startDate: form.startDate, time: '',
-        assignee, repeat: form.repeat,
-        repeatDays: form.repeat === 'custom' ? Number(form.customDays) : null,
+        date: form.startDate, startDate: form.startDate, endDate: form.endDate || null, time: '',
+        assignee, repeat: days > 0 ? 'custom' : 'none',
+        repeatDays: days > 0 ? days : null,
         note: form.note.trim(),
       })
       setShowAdd(false)
-      setForm({ name: '', repeat: 'weekly', customDays: '', startDate: fmtDate(new Date()), note: '', assignee: 'auto' })
+      setForm({ name: '', repeatDays: '', startDate: fmtDate(new Date()), endDate: '', note: '', assignee: '' })
       toast.success(`${assignee} 담당으로 배정됐어요`)
     } catch (e) {
       // error shown by hook
@@ -127,9 +128,9 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
     setEditTask({
       id: task.id,
       name: task.name,
-      repeat: task.repeat || 'weekly',
-      customDays: task.repeatDays ? String(task.repeatDays) : '',
+      repeatDays: task.repeatDays ? String(task.repeatDays) : '',
       startDate: task.startDate || task.date,
+      endDate: task.endDate || '',
       note: task.note || '',
       assignee: task.assignee,
     })
@@ -139,15 +140,16 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
     const name = editTask.name.trim()
     if (!name) { toast.error('잡무 이름을 입력해주세요.'); return }
     if (name.length > 100) { toast.error('이름은 100자 이내로 입력해주세요.'); return }
-    if (editTask.repeat === 'custom' && (!editTask.customDays || Number(editTask.customDays) < 1)) {
-      toast.error('반복 일수를 입력해주세요.'); return
-    }
+    if (!editTask.assignee) { toast.error('담당자를 선택해주세요.'); return }
+    if (editTask.repeatDays && Number(editTask.repeatDays) < 1) { toast.error('반복 주기는 1일 이상으로 입력해주세요.'); return }
+    if (editTask.endDate && editTask.endDate < editTask.startDate) { toast.error('종료일은 시작일 이후여야 해요.'); return }
+    const days = editTask.repeatDays ? Number(editTask.repeatDays) : 0
     try {
       await schedulesHook.update(editTask.id, {
         name,
-        date: editTask.startDate, startDate: editTask.startDate,
-        assignee: editTask.assignee, repeat: editTask.repeat,
-        repeatDays: editTask.repeat === 'custom' ? Number(editTask.customDays) : null,
+        date: editTask.startDate, startDate: editTask.startDate, endDate: editTask.endDate || null,
+        assignee: editTask.assignee, repeat: days > 0 ? 'custom' : 'none',
+        repeatDays: days > 0 ? days : null,
         note: editTask.note.trim(),
       })
       setEditTask(null)
@@ -214,7 +216,7 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div className="tsk-row-name">{task.name}</div>
                     <div className="tsk-row-meta">
-                      {task.assignee} · {repeatLabel(task)} · {task.startDate}부터
+                      {task.assignee} · {repeatLabel(task)} · {task.startDate}부터{task.endDate ? ` ${task.endDate}까지` : ''}
                     </div>
                   </div>
                   <button className="tsk-del" onClick={e => { e.stopPropagation(); deleteTask(task) }} aria-label="삭제">✕</button>
@@ -237,41 +239,33 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
                 placeholder="예: 실험실 청소, 약품 주문" autoFocus />
             </div>
             <div className="form-group">
-              <label className="form-label">시작 날짜</label>
-              <input className="form-input" type="date" value={form.startDate}
-                onChange={e => setForm(p => ({ ...p, startDate: e.target.value }))} />
+              <label className="form-label">기간</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input className="form-input" type="date" value={form.startDate}
+                  onChange={e => setForm(p => ({ ...p, startDate: e.target.value }))} style={{ flex: 1 }} />
+                <span style={{ fontSize: 12, color: 'var(--text2)' }}>~</span>
+                <input className="form-input" type="date" value={form.endDate} min={form.startDate}
+                  onChange={e => setForm(p => ({ ...p, endDate: e.target.value }))} style={{ flex: 1 }} />
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>종료일은 선택 사항이에요. 비워두면 계속 반복돼요.</div>
             </div>
             <div className="form-group">
               <label className="form-label">반복 주기</label>
-              <div className="opt-grid" style={{ marginBottom: 8 }}>
-                {[['weekly','매주','7일 간격'], ['biweekly','격주','14일 간격'], ['monthly','매월','30일 간격'], ['none','1회','반복 없음']].map(([v,l,sub]) => (
-                  <button key={v} className={`opt-card${form.repeat === v ? ' on' : ''}`} onClick={() => setForm(p => ({ ...p, repeat: v }))}>
-                    <div className="opt-card-t" style={{ color: form.repeat === v ? 'var(--green)' : 'var(--text)' }}>{l}</div>
-                    <div className="opt-card-s">{sub}</div>
-                  </button>
-                ))}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <input className="form-input" type="number" min="0" max="365" value={form.repeatDays}
+                  onChange={e => setForm(p => ({ ...p, repeatDays: e.target.value }))}
+                  placeholder="숫자" style={{ flex: 1 }} />
+                <span style={{ fontSize: 13, color: 'var(--text2)', whiteSpace: 'nowrap' }}>일마다</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <button className={`opt-pill${form.repeat === 'custom' ? ' on' : ''}`}
-                  style={{ whiteSpace: 'nowrap', borderColor: form.repeat === 'custom' ? 'var(--green)' : 'var(--border)', background: form.repeat === 'custom' ? 'var(--green-light)' : 'var(--card)', color: form.repeat === 'custom' ? 'var(--green)' : 'var(--text2)' }}
-                  onClick={() => setForm(p => ({ ...p, repeat: 'custom' }))}>직접 입력</button>
-                {form.repeat === 'custom' && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
-                    <input className="form-input" type="number" min="1" max="365" value={form.customDays}
-                      onChange={e => setForm(p => ({ ...p, customDays: e.target.value }))}
-                      placeholder="숫자" style={{ flex: 1 }} />
-                    <span style={{ fontSize: 13, color: 'var(--text2)', whiteSpace: 'nowrap' }}>일마다</span>
-                  </div>
-                )}
-              </div>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>비워두거나 0이면 반복 없이 한 번만 등록돼요.</div>
             </div>
             <div className="form-group">
               <label className="form-label">담당자</label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                <button className="opt-pill"
-                  style={{ borderRadius: 20, borderColor: form.assignee === 'auto' ? 'var(--green)' : 'var(--border)', background: form.assignee === 'auto' ? 'var(--green-light)' : 'var(--card)', color: form.assignee === 'auto' ? 'var(--green)' : 'var(--text2)' }}
-                  onClick={() => setForm(p => ({ ...p, assignee: 'auto' }))}>
-                  자동 배정 · {getNextAssignee()}
+                <button type="button" className="opt-pill"
+                  style={{ borderRadius: 20, borderColor: 'var(--green)', background: 'var(--green-light)', color: 'var(--green)', fontWeight: 700 }}
+                  onClick={() => setForm(p => ({ ...p, assignee: getNextAssignee() }))}>
+                  🔀 자동 배정
                 </button>
                 {uniqueMembers.map(m => (
                   <button key={m.id} className="opt-pill"
@@ -305,37 +299,34 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
                 placeholder="예: 실험실 청소, 약품 주문" autoFocus />
             </div>
             <div className="form-group">
-              <label className="form-label">시작 날짜</label>
-              <input className="form-input" type="date" value={editTask.startDate}
-                onChange={e => setEditTask(p => ({ ...p, startDate: e.target.value }))} />
+              <label className="form-label">기간</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input className="form-input" type="date" value={editTask.startDate}
+                  onChange={e => setEditTask(p => ({ ...p, startDate: e.target.value }))} style={{ flex: 1 }} />
+                <span style={{ fontSize: 12, color: 'var(--text2)' }}>~</span>
+                <input className="form-input" type="date" value={editTask.endDate} min={editTask.startDate}
+                  onChange={e => setEditTask(p => ({ ...p, endDate: e.target.value }))} style={{ flex: 1 }} />
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>종료일은 선택 사항이에요. 비워두면 계속 반복돼요.</div>
             </div>
             <div className="form-group">
               <label className="form-label">반복 주기</label>
-              <div className="opt-grid" style={{ marginBottom: 8 }}>
-                {[['weekly','매주','7일 간격'], ['biweekly','격주','14일 간격'], ['monthly','매월','30일 간격'], ['none','1회','반복 없음']].map(([v,l,sub]) => (
-                  <button key={v} className={`opt-card${editTask.repeat === v ? ' on' : ''}`} onClick={() => setEditTask(p => ({ ...p, repeat: v }))}>
-                    <div className="opt-card-t" style={{ color: editTask.repeat === v ? 'var(--green)' : 'var(--text)' }}>{l}</div>
-                    <div className="opt-card-s">{sub}</div>
-                  </button>
-                ))}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <input className="form-input" type="number" min="0" max="365" value={editTask.repeatDays}
+                  onChange={e => setEditTask(p => ({ ...p, repeatDays: e.target.value }))}
+                  placeholder="숫자" style={{ flex: 1 }} />
+                <span style={{ fontSize: 13, color: 'var(--text2)', whiteSpace: 'nowrap' }}>일마다</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <button className={`opt-pill${editTask.repeat === 'custom' ? ' on' : ''}`}
-                  style={{ whiteSpace: 'nowrap', borderColor: editTask.repeat === 'custom' ? 'var(--green)' : 'var(--border)', background: editTask.repeat === 'custom' ? 'var(--green-light)' : 'var(--card)', color: editTask.repeat === 'custom' ? 'var(--green)' : 'var(--text2)' }}
-                  onClick={() => setEditTask(p => ({ ...p, repeat: 'custom' }))}>직접 입력</button>
-                {editTask.repeat === 'custom' && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
-                    <input className="form-input" type="number" min="1" max="365" value={editTask.customDays}
-                      onChange={e => setEditTask(p => ({ ...p, customDays: e.target.value }))}
-                      placeholder="숫자" style={{ flex: 1 }} />
-                    <span style={{ fontSize: 13, color: 'var(--text2)', whiteSpace: 'nowrap' }}>일마다</span>
-                  </div>
-                )}
-              </div>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>비워두거나 0이면 반복 없이 한 번만 등록돼요.</div>
             </div>
             <div className="form-group">
               <label className="form-label">담당자</label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                <button type="button" className="opt-pill"
+                  style={{ borderRadius: 20, borderColor: 'var(--green)', background: 'var(--green-light)', color: 'var(--green)', fontWeight: 700 }}
+                  onClick={() => setEditTask(p => ({ ...p, assignee: getNextAssignee() }))}>
+                  🔀 자동 배정
+                </button>
                 {uniqueMembers.map(m => (
                   <button key={m.id} className="opt-pill"
                     style={{ borderRadius: 20, borderColor: editTask.assignee === m.name ? colorMap[m.name] : 'var(--border)', background: editTask.assignee === m.name ? `${colorMap[m.name]}1A` : 'var(--card)', color: editTask.assignee === m.name ? colorMap[m.name] : 'var(--text2)' }}

@@ -11,7 +11,7 @@ export default function TaskCalendar({ tasks, members, onSelectDate, selectedDat
   const tasksByDate = useMemo(() => {
     const map = {}
     tasks.forEach(task => {
-      const dates = generateTaskDates(task.startDate || task.date, task.repeat, task.repeatDays)
+      const dates = generateTaskDates(task.startDate || task.date, task.repeat, task.repeatDays, task.endDate)
       dates.forEach(d => {
         if (!map[d]) map[d] = []
         if (!map[d].find(t => t.taskId === task.id)) {
