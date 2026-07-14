@@ -221,15 +221,20 @@ export default function HomeTab({ user, schedules, schedulesHook, supplies, noti
                     display: 'flex', alignItems: 'center', gap: 12,
                     padding: '12px 16px',
                     borderBottom: (i < todayItems.length - 1 || upcomingMyTasks.length > 0) ? '1px solid var(--border)' : 'none',
+                    background: s.done ? 'var(--bg)' : 'transparent',
                   }}>
-                    <div style={{ width: 4, height: 36, borderRadius: 2, flexShrink: 0, background: ts.bar }} />
+                    <div style={{ width: 4, height: 36, borderRadius: 2, flexShrink: 0, background: ts.bar, opacity: s.done ? .4 : 1 }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</div>
+                      <div style={{
+                        fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        textDecoration: s.done ? 'line-through' : 'none',
+                        color: s.done ? 'var(--text2)' : 'var(--text)',
+                      }}>{s.name}</div>
                       <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>
                         {s.time ? `${s.time} · ` : ''}{s.assignee}
                       </div>
                     </div>
-                    <span className={`chip ${ts.chip}`} style={{ fontSize: 10, flexShrink: 0 }}>{ts.label}</span>
+                    <span className={`chip ${ts.chip}`} style={{ fontSize: 10, flexShrink: 0, opacity: s.done ? .5 : 1 }}>{ts.label}</span>
                   </div>
                 )
               })}
