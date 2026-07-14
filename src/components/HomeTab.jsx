@@ -1,6 +1,6 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { DAYS } from '../mockData'
-import { fmtDate, formatTime, taskAssigneeOn, taskOccurrences } from '../utils'
+import { fmtDate, formatTime, computeSchedule, scheduleAssigneeOn, scheduleOccurrences } from '../utils'
 
 const typeStyle = {
   lab:  { bar: 'var(--green)',  chip: 'chip-green',  label: '공용' },
@@ -15,11 +15,15 @@ export default function HomeTab({ user, schedules, schedulesHook, supplies, noti
   const [newTodo, setNewTodo] = useState('')
   const [todoDate, setTodoDate] = useState(todayStr)
 
+  // 잡무는 하루 여러 명이 돌아가며 맡을 수 있어서, 랩 전체 잡무를 같이 봐야
+  // 오늘 실제로 누구 차례인지 정확히 알 수 있음
+  const taskSchedules = useMemo(() => schedules.filter(s => s.type === 'task'), [schedules])
+  const schedule = useMemo(() => computeSchedule(taskSchedules), [taskSchedules])
+
   // 홈 stats: 내 오늘 일정 수 (공용 + 나에게 할당)
-  // 잡무는 하루 여러 명이 순환해서 맡을 수 있으므로, 오늘 실제로 이 잡무를 맡는 사람이 나인지 확인
   const myTodayCount = schedules.filter(s => {
     if (s.type === 'task') {
-      return taskAssigneeOn(s, todayStr) === user.name
+      return scheduleAssigneeOn(schedule, s.id, todayStr) === user.name
     }
     return s.date === todayStr && (s.type === 'lab' || s.assignee === user.name)
   }).length
@@ -28,7 +32,7 @@ export default function HomeTab({ user, schedules, schedulesHook, supplies, noti
   const todayItems = schedules
     .filter(s => {
       if (s.type === 'task') {
-        return taskAssigneeOn(s, todayStr) === user.name
+        return scheduleAssigneeOn(schedule, s.id, todayStr) === user.name
       }
       return s.date === todayStr
     })
@@ -43,7 +47,7 @@ export default function HomeTab({ user, schedules, schedulesHook, supplies, noti
   const upcomingMyTasks = schedules
     .filter(s => s.type === 'task')
     .map(s => {
-      const next = taskOccurrences(s).find(o => o.date > todayStr && o.assignee === user.name)
+      const next = scheduleOccurrences(schedule, s.id).find(o => o.date > todayStr && o.assignee === user.name)
       return next ? { ...s, nextDate: next.date } : null
     })
     .filter(Boolean)

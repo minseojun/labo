@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react'
-import { fmtDate, memberColor, assignMemberColors, taskAssigneeOn, taskRotation, memberWorkload, redistributeTasks, bestRotationOrder } from '../../utils'
+import { fmtDate, memberColor, assignMemberColors, taskRotation, computeSchedule, scheduleAssigneeOn, scheduleMemberWorkload, redistributeTasks } from '../../utils'
 import { toast } from '../../utils/toast'
 import TaskCalendar from './TaskCalendar'
 
@@ -62,10 +62,13 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
   const uniqueMembers = members.filter((m, i, arr) => arr.findIndex(x => x.id === m.id) === i)
   const colorMap = assignMemberColors(uniqueMembers)
 
-  // count = "잡무 개수"가 아니라 다음 90일 기준 예상 수행 횟수 합 — 반복 주기가 짧을수록,
-  // 그 잡무를 적은 인원이 나눠 맡을수록 더 크게 반영됨 (여러 명이 순환하면 그만큼 나뉘어 계산)
+  // 랩의 잡무 전체를 한꺼번에 보고 발생일마다 담당자를 정하는 전역 스케줄러
+  // (겹치는 날·연속일을 최대한 피하면서 장기적으로 누적 배정 수는 공평하게 맞춤)
+  const schedule = useMemo(() => computeSchedule(tasks), [tasks])
+
+  // count = "잡무 개수"가 아니라 다음 90일 기준 예상 수행 횟수 합
   const memberCounts = uniqueMembers.map(m => ({
-    ...m, count: tasks.reduce((sum, t) => sum + memberWorkload(t, m.name), 0)
+    ...m, count: scheduleMemberWorkload(schedule, m.name)
   })).sort((a, b) => a.count - b.count)
 
   // 분담 현황은 부담 큰 순으로 보여줘서 불균형이 바로 보이게
@@ -74,11 +77,11 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
   const tasksOnDate = useMemo(() => {
     return tasks
       .map(task => {
-        const todayAssignee = taskAssigneeOn(task, selectedDate)
+        const todayAssignee = scheduleAssigneeOn(schedule, task.id, selectedDate)
         return todayAssignee ? { ...task, todayAssignee } : null
       })
       .filter(Boolean)
-  }, [tasks, selectedDate])
+  }, [tasks, schedule, selectedDate])
 
   const isToday = selectedDate === fmtDate(new Date())
   const dateLabel = isToday ? '오늘' : selectedDate.replace(/^\d{4}-/, '').replace('-', '. ')
@@ -104,10 +107,7 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
     if (form.endDate && form.endDate < form.startDate) { toast.error('종료일은 시작일 이후여야 해요.'); return }
     if (uniqueMembers.length === 0) { toast.error('먼저 랩 구성원이 있어야 해요.'); return }
     const days = form.repeatDays ? Number(form.repeatDays) : 0
-    const chosen = form.assignees.length > 0 ? form.assignees : uniqueMembers.map(m => m.name)
-    const draft = { startDate: form.startDate, repeat: days > 0 ? 'custom' : 'none', repeatDays: days > 0 ? days : null, endDate: form.endDate || null }
-    // 다른 잡무들과 최대한 안 겹치도록 순환 시작 순서를 고름 (인원 구성은 그대로, 순서만 조정)
-    const rotation = bestRotationOrder(draft, chosen, tasks)
+    const rotation = form.assignees.length > 0 ? form.assignees : uniqueMembers.map(m => m.name)
     try {
       await schedulesHook.add({
         name, type: 'task',
@@ -166,10 +166,7 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
     if (editTask.repeatDays && Number(editTask.repeatDays) < 1) { toast.error('반복 주기는 1일 이상으로 입력해주세요.'); return }
     if (editTask.endDate && editTask.endDate < editTask.startDate) { toast.error('종료일은 시작일 이후여야 해요.'); return }
     const days = editTask.repeatDays ? Number(editTask.repeatDays) : 0
-    const chosen = editTask.assignees.length > 0 ? editTask.assignees : uniqueMembers.map(m => m.name)
-    const draft = { startDate: editTask.startDate, repeat: days > 0 ? 'custom' : 'none', repeatDays: days > 0 ? days : null, endDate: editTask.endDate || null }
-    // 이 잡무를 뺀 나머지 잡무들과 최대한 안 겹치도록 순환 시작 순서를 고름
-    const rotation = bestRotationOrder(draft, chosen, tasks.filter(t => t.id !== editTask.id))
+    const rotation = editTask.assignees.length > 0 ? editTask.assignees : uniqueMembers.map(m => m.name)
     try {
       await schedulesHook.update(editTask.id, {
         name,
