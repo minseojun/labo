@@ -77,25 +77,27 @@ export function taskRotation(task) {
 // 시간순으로 하나로 합친 뒤, 그 시점까지 "가장 오래 쉰 사람"에게 배정하는 방식으로
 // 바꿈. 특정 잡무가 매번 정확히 같은 사람에게 고정 주기로 가지는 않지만, 장기적으로는
 // 누적 배정 수가 똑같이 맞춰지고(공평성 유지) 겹침·연속일은 훨씬 줄어듦
+// task.overrides: { "YYYY-MM-DD": "대신 맡을 사람 이름" } — 당번 교체(스왑) 결과.
+// 있으면 그 날짜만 자동 배정 대신 지정된 사람으로 확정하고, 이후 공평성 계산에도 반영함
 export function computeSchedule(tasks) {
   const events = []
   tasks.forEach(task => {
     const eligible = taskRotation(task)
     if (eligible.length === 0) return
     generateTaskDates(task.startDate || task.date, task.repeat, task.repeatDays, task.endDate)
-      .forEach(date => events.push({ date, taskId: task.id, eligible }))
+      .forEach(date => events.push({ date, taskId: task.id, eligible, override: task.overrides && task.overrides[date] }))
   })
   events.sort((a, b) => a.date.localeCompare(b.date) || a.taskId.localeCompare(b.taskId))
 
   const lastAssigned = {}  // 사람 이름 -> 마지막으로 뭔가 맡은 날짜
   const totalCount = {}    // 사람 이름 -> 지금까지 누적 배정 수
   const assignedToday = {} // 날짜 -> 그날 이미 뭔가 맡은 사람들
-  const byTask = {}        // taskId -> [{date, assignee}]
+  const byTask = {}        // taskId -> [{date, assignee, overridden}]
   const byTaskDate = {}    // "taskId|date" -> assignee (빠른 조회용)
 
-  events.forEach(({ date, taskId, eligible }) => {
+  events.forEach(({ date, taskId, eligible, override }) => {
     if (!assignedToday[date]) assignedToday[date] = new Set()
-    const chosen = [...eligible].sort((a, b) => {
+    const chosen = override || [...eligible].sort((a, b) => {
       // 1순위: 오늘 아직 다른 잡무를 안 맡은 사람 (하루 중복 회피)
       const aBusy = assignedToday[date].has(a) ? 1 : 0
       const bBusy = assignedToday[date].has(b) ? 1 : 0
@@ -112,7 +114,7 @@ export function computeSchedule(tasks) {
     totalCount[chosen] = (totalCount[chosen] || 0) + 1
     assignedToday[date].add(chosen)
     if (!byTask[taskId]) byTask[taskId] = []
-    byTask[taskId].push({ date, assignee: chosen })
+    byTask[taskId].push({ date, assignee: chosen, overridden: !!override })
     byTaskDate[`${taskId}|${date}`] = chosen
   })
 
@@ -125,6 +127,9 @@ export function scheduleOccurrences(schedule, taskId) {
 }
 export function scheduleAssigneeOn(schedule, taskId, dateStr) {
   return schedule.byTaskDate[`${taskId}|${dateStr}`]
+}
+export function scheduleIsOverridden(schedule, taskId, dateStr) {
+  return !!scheduleOccurrences(schedule, taskId).find(o => o.date === dateStr)?.overridden
 }
 export function scheduleMemberWorkload(schedule, memberName) {
   return schedule.totalCount[memberName] || 0
