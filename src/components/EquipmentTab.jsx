@@ -1,8 +1,12 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { updateDoc, doc, arrayUnion, addDoc, collection, onSnapshot, serverTimestamp, query, orderBy } from 'firebase/firestore'
+import QRCode from 'qrcode'
+import jsQR from 'jsqr'
 import { db } from '../firebase'
 import { toast } from '../utils/toast'
-import { useEffect } from 'react'
+
+const QR_PREFIX = 'LABO-EQUIP:'
+const qrPayload = code => `${QR_PREFIX}${code}`
 
 function StatusChip({ status }) {
   if (status === 'available') return <span className="chip chip-green">가용</span>
@@ -22,6 +26,90 @@ function SkeletonCard() {
         <div className="skeleton" style={{ height: 11, width: '40%' }} />
       </div>
       <div className="skeleton" style={{ width: 48, height: 22, borderRadius: 20 }} />
+    </div>
+  )
+}
+
+// 실제로 스캔 가능한 QR 코드를 캔버스에 그림 — "LABO-EQUIP:코드" 형태로 인코딩해서
+// 아무 QR 리더 앱으로 찍어도 코드가 보이고, 앱 안에서 찍으면 바로 그 장비로 이동함
+function QRCanvas({ value, size = 168 }) {
+  const canvasRef = useRef(null)
+  useEffect(() => {
+    if (!canvasRef.current) return
+    QRCode.toCanvas(canvasRef.current, value, {
+      width: size, margin: 1,
+      color: { dark: '#1A1A1A', light: '#FFFFFF' },
+    }).catch(err => console.error(err))
+  }, [value, size])
+  return <canvas ref={canvasRef} style={{ borderRadius: 8, display: 'block' }} />
+}
+
+// 실제 카메라로 QR을 읽는 스캐너. getUserMedia로 후면 카메라를 열고,
+// 매 프레임을 캔버스에 그려서 jsQR로 디코딩함
+function QRScanner({ onDetect }) {
+  const videoRef = useRef(null)
+  const canvasRef = useRef(null)
+  const rafRef = useRef(null)
+  const streamRef = useRef(null)
+  const pausedRef = useRef(false)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+
+    function tick() {
+      const video = videoRef.current
+      const canvas = canvasRef.current
+      if (video && canvas && video.readyState === video.HAVE_ENOUGH_DATA) {
+        canvas.width = video.videoWidth
+        canvas.height = video.videoHeight
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+        const code = jsQR(imageData.data, imageData.width, imageData.height)
+        if (code?.data && !pausedRef.current) {
+          pausedRef.current = true
+          onDetect(code.data)
+          setTimeout(() => { pausedRef.current = false }, 1500)
+        }
+      }
+      rafRef.current = requestAnimationFrame(tick)
+    }
+
+    async function start() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+        if (cancelled) { stream.getTracks().forEach(t => t.stop()); return }
+        streamRef.current = stream
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream
+          await videoRef.current.play()
+        }
+        tick()
+      } catch (e) {
+        console.error(e)
+        setError('카메라를 사용할 수 없어요. 권한을 확인하거나 아래 목록에서 직접 골라주세요.')
+      }
+    }
+
+    if (navigator.mediaDevices?.getUserMedia) start()
+    else setError('이 브라우저에서는 카메라를 지원하지 않아요. 아래 목록에서 직접 골라주세요.')
+
+    return () => {
+      cancelled = true
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+      if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop())
+    }
+  }, [onDetect])
+
+  return (
+    <div>
+      <div className="qr-area">
+        <video ref={videoRef} playsInline muted />
+        <canvas ref={canvasRef} style={{ display: 'none' }} />
+        <div className="qr-scanner-frame" />
+      </div>
+      {error && <p style={{ textAlign: 'center', fontSize: 12, color: 'var(--red)', margin: '8px 0 0' }}>{error}</p>}
     </div>
   )
 }
@@ -114,6 +202,7 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
   const [showAdd, setShowAdd] = useState(false)
   const [scanning, setScanning] = useState(false)
   const [showQR, setShowQR] = useState(false)
+  const [showBulkQR, setShowBulkQR] = useState(false)
   const [memo, setMemo] = useState('')
   const [filter, setFilter] = useState('all')
   const [form, setForm] = useState({ name: '', code: '', status: 'available', icon: '🔬' })
@@ -179,6 +268,18 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
     }
   }
 
+  const handleQRDetect = (data) => {
+    const code = data.startsWith(QR_PREFIX) ? data.slice(QR_PREFIX.length) : data
+    const found = equipment.find(e => e.code?.toLowerCase() === code.toLowerCase())
+    if (found) {
+      setScanning(false)
+      setSel(found)
+      toast.success(`${found.name} 스캔했어요`)
+    } else {
+      toast.error('등록되지 않은 장비 QR이에요.')
+    }
+  }
+
   return (
     <div>
       <div className="page-header">
@@ -189,6 +290,12 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
               style={{ padding: '8px 12px', background: 'var(--card)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
               📷 QR
             </button>
+            {isAdmin && equipment.length > 0 && (
+              <button onClick={() => setShowBulkQR(true)}
+                style={{ padding: '8px 12px', background: 'var(--card)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                🖨️ QR 전체
+              </button>
+            )}
             {isAdmin && (
               <button onClick={() => setShowAdd(true)}
                 style={{ padding: '8px 12px', background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
@@ -312,8 +419,8 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
           <div className="sheet">
             <div className="sheet-handle" />
             <div className="sheet-title">QR 코드 스캔</div>
-            <div className="qr-area"><div className="qr-scanner-frame" /></div>
-            <p style={{ textAlign: 'center', fontSize: 13, color: 'var(--text2)', marginBottom: 12 }}>장비를 선택해서 바로 열 수 있습니다</p>
+            <QRScanner onDetect={handleQRDetect} />
+            <p style={{ textAlign: 'center', fontSize: 13, color: 'var(--text2)', margin: '12px 0' }}>카메라를 QR 코드에 비추거나, 아래에서 직접 골라도 돼요</p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
               {equipment.map(eq => (
                 <button key={eq.id}
@@ -332,20 +439,40 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
           <div className="sheet">
             <div className="sheet-handle" />
             <div className="sheet-title">QR 코드 — {sel.name}</div>
-            <div style={{ display: 'flex', justifyContent: 'center', margin: '16px 0' }}>
-              <svg width="160" height="160" viewBox="0 0 160 160" style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 8, background: '#fff' }}>
-                {[0,1,2,3,4].map(r => [0,1,2,3,4].map(c => {
-                  const p = [[1,1,1,1,1],[1,0,1,0,1],[1,0,1,0,1],[1,0,1,0,1],[1,1,1,1,1]]
-                  return p[r][c] ? <rect key={`${r}${c}`} x={8+c*16} y={8+r*16} width={14} height={14} fill="#1A1A1A" rx={2} /> : null
-                }))}
-                <text x="80" y="152" textAnchor="middle" fontSize="10" fill="#6B7280">{sel.code}</text>
-              </svg>
-            </div>
-            <div style={{ textAlign: 'center', marginBottom: 16 }}>
-              <div style={{ fontWeight: 600 }}>{sel.name}</div>
-              <div style={{ fontSize: 12, color: 'var(--text2)' }}>{sel.code}</div>
+            <div className="print-area">
+              <div style={{ display: 'flex', justifyContent: 'center', margin: '16px 0' }}>
+                <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 12, background: '#fff' }}>
+                  <QRCanvas value={qrPayload(sel.code)} />
+                </div>
+              </div>
+              <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                <div style={{ fontWeight: 600 }}>{sel.name}</div>
+                <div style={{ fontSize: 12, color: 'var(--text2)' }}>{sel.code}</div>
+              </div>
             </div>
             <button className="btn-primary" onClick={() => window.print()}>🖨️ 인쇄</button>
+          </div>
+        </div>
+      )}
+
+      {showBulkQR && (
+        <div className="sheet-backdrop" onClick={e => e.target === e.currentTarget && setShowBulkQR(false)}>
+          <div className="sheet" style={{ maxWidth: 480 }}>
+            <div className="sheet-handle" />
+            <div className="sheet-title">전체 장비 QR ({equipment.length}개)</div>
+            <p style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 12 }}>인쇄한 뒤 점선을 따라 잘라서 장비에 붙이세요.</p>
+            <div className="print-area">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                {equipment.map(eq => (
+                  <div key={eq.id} style={{ border: '1px dashed var(--border)', borderRadius: 10, padding: 10, textAlign: 'center', breakInside: 'avoid' }}>
+                    <QRCanvas value={qrPayload(eq.code)} size={120} />
+                    <div style={{ fontWeight: 600, fontSize: 12, marginTop: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{eq.name}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text2)' }}>{eq.code}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <button className="btn-primary" style={{ marginTop: 16 }} onClick={() => window.print()}>🖨️ 전체 인쇄</button>
           </div>
         </div>
       )}
