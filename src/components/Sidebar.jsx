@@ -201,7 +201,7 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate 
               <>
                 <div style={{ fontWeight: 700, fontSize: 17, marginBottom: 12 }}>🔔 알림 설정</div>
                 <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.6, marginBottom: 16 }}>
-                  타이머가 끝나면 브라우저 알림으로 알려드려요.
+                  타이머가 끝나거나, 오늘·내일 내 잡무 당번이 있으면 브라우저 알림으로 알려드려요.
                 </div>
                 <div style={{ padding: '10px 14px', background: 'var(--bg)', borderRadius: 10, fontSize: 13, marginBottom: 16 }}>
                   현재 상태: <b>{

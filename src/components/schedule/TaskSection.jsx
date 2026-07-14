@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react'
-import { fmtDate, memberColor, assignMemberColors, taskRotation, computeSchedule, scheduleAssigneeOn, scheduleMemberWorkload, redistributeTasks } from '../../utils'
+import { deleteField } from 'firebase/firestore'
+import { fmtDate, memberColor, assignMemberColors, taskRotation, computeSchedule, scheduleAssigneeOn, scheduleIsOverridden, scheduleMemberWorkload, redistributeTasks } from '../../utils'
 import { toast } from '../../utils/toast'
 import TaskCalendar from './TaskCalendar'
 
@@ -56,6 +57,7 @@ function WorkloadPanel({ rows, total, colorMap, onRedistribute }) {
 export default function TaskSection({ labId, tasks, schedulesHook, members, user }) {
   const [showAdd, setShowAdd] = useState(false)
   const [editTask, setEditTask] = useState(null)
+  const [swapTask, setSwapTask] = useState(null)
   const [selectedDate, setSelectedDate] = useState(fmtDate(new Date()))
   const [form, setForm] = useState({ name: '', repeatDays: '', startDate: fmtDate(new Date()), endDate: '', note: '', assignees: [] })
 
@@ -147,6 +149,32 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
     }
   }
 
+  const openSwap = (task) => {
+    setSwapTask({ id: task.id, name: task.name, date: selectedDate, current: task.todayAssignee })
+  }
+
+  const confirmSwap = async (newName) => {
+    if (!swapTask) return
+    try {
+      await schedulesHook.update(swapTask.id, { [`overrides.${swapTask.date}`]: newName })
+      toast.success(`${dateLabel} ${swapTask.name} 담당을 ${newName}(으)로 바꿨어요`)
+      setSwapTask(null)
+    } catch (e) {
+      // error shown by hook
+    }
+  }
+
+  const revertSwap = async () => {
+    if (!swapTask) return
+    try {
+      await schedulesHook.update(swapTask.id, { [`overrides.${swapTask.date}`]: deleteField() })
+      toast.success('원래 배정으로 되돌렸어요')
+      setSwapTask(null)
+    } catch (e) {
+      // error shown by hook
+    }
+  }
+
   const openEdit = (task) => {
     setEditTask({
       id: task.id,
@@ -213,6 +241,7 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
         ) : tasksOnDate.map(task => {
           const color = colorMap[task.todayAssignee] || memberColor(task.todayAssignee)
           const rotation = taskRotation(task)
+          const overridden = scheduleIsOverridden(schedule, task.id, selectedDate)
           return (
             <div key={task.id} className="tsk-card" style={{ '--accent': color, cursor: 'pointer' }} onClick={() => openEdit(task)}>
               <div className="tsk-avatar" style={{ background: `${color}1A`, color }}>{initial(task.todayAssignee)}</div>
@@ -220,12 +249,14 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
                 <div className="tsk-name">{task.name}</div>
                 <div className="tsk-metarow">
                   <span className="tsk-strong" style={{ color }}>{task.todayAssignee}</span>
-                  {rotation.length > 1 && <span style={{ fontSize: 10, color: 'var(--text3)' }}>({rotation.length}명 순환)</span>}
+                  {overridden && <span style={{ fontSize: 10, color: 'var(--green)', fontWeight: 700 }}>🔄 교체됨</span>}
+                  {!overridden && rotation.length > 1 && <span style={{ fontSize: 10, color: 'var(--text3)' }}>({rotation.length}명 순환)</span>}
                   <span className="tsk-sep" />
                   <span>{repeatLabel(task)}</span>
                 </div>
                 {task.note && <div className="tsk-note">{task.note}</div>}
               </div>
+              <button className="tsk-del" style={{ fontSize: 13 }} onClick={e => { e.stopPropagation(); openSwap(task) }} aria-label="담당자 바꾸기">🔄</button>
               <button className="tsk-del" onClick={e => { e.stopPropagation(); deleteTask(task) }} aria-label="삭제">✕</button>
             </div>
           )
@@ -372,6 +403,35 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
                 placeholder="주의사항, 방법 등..." />
             </div>
             <button className="btn-primary" onClick={saveEditTask}>저장하기</button>
+          </div>
+        </div>
+      )}
+
+      {swapTask && (
+        <div className="sheet-backdrop" onClick={e => e.target === e.currentTarget && setSwapTask(null)}>
+          <div className="sheet">
+            <div className="sheet-handle" />
+            <div className="sheet-title">{dateLabel} 담당 바꾸기</div>
+            <div style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 16 }}>
+              <b style={{ color: 'var(--text)' }}>{swapTask.name}</b> · 현재 담당: <b style={{ color: 'var(--text)' }}>{swapTask.current}</b>
+            </div>
+            <div className="form-group">
+              <label className="form-label">대신 맡을 사람</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {uniqueMembers.filter(m => m.name !== swapTask.current).map(m => (
+                  <button key={m.id} type="button" className="opt-pill"
+                    style={{ borderRadius: 20, borderColor: colorMap[m.name] || 'var(--border)', color: colorMap[m.name] || 'var(--text2)' }}
+                    onClick={() => confirmSwap(m.name)}>
+                    {m.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {scheduleIsOverridden(schedule, swapTask.id, swapTask.date) && (
+              <button className="btn-primary" style={{ background: 'var(--bg)', color: 'var(--text2)', boxShadow: 'none' }} onClick={revertSwap}>
+                ↩ 원래 배정으로 되돌리기
+              </button>
+            )}
           </div>
         </div>
       )}
