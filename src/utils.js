@@ -63,120 +63,82 @@ export function taskWorkload(task) {
   return generateTaskDates(task.startDate || task.date, task.repeat, task.repeatDays, task.endDate).length
 }
 
-// 잡무 하나를 담당하는 사람 목록 — 여러 명이면 발생할 때마다 순서대로 돌아가며 맡음.
-// rotation이 없는 옛날 데이터는 assignee 한 명짜리 rotation으로 취급해 하위 호환
+// 잡무 하나를 맡을 수 있는 사람 목록 — 순서는 의미 없음 (누가 언제 맡을지는
+// computeSchedule이 전체 잡무를 같이 보고 그때그때 정함).
+// rotation이 없는 옛날 데이터는 assignee 한 명짜리로 취급해 하위 호환
 export function taskRotation(task) {
   if (task.rotation && task.rotation.length > 0) return task.rotation
   return task.assignee ? [task.assignee] : []
 }
 
-// 잡무의 각 발생일마다 실제로 누가 담당인지 계산 (라운드로빈으로 순서대로 순환)
-export function taskOccurrences(task) {
-  const rotation = taskRotation(task)
-  if (rotation.length === 0) return []
-  const dates = generateTaskDates(task.startDate || task.date, task.repeat, task.repeatDays, task.endDate)
-  return dates.map((date, i) => ({ date, assignee: rotation[i % rotation.length] }))
-}
+// 랩의 잡무 전체를 한꺼번에 보고 발생일마다 담당자를 정하는 전역 스케줄러.
+// 잡무마다 따로 "몇 일마다 고정 순환"을 강제하면(이전 방식) 서로 다른 잡무끼리
+// 우연히 같은 날/연속일에 겹치는 걸 위상만으로는 다 못 피함 — 그래서 발생일을
+// 시간순으로 하나로 합친 뒤, 그 시점까지 "가장 오래 쉰 사람"에게 배정하는 방식으로
+// 바꿈. 특정 잡무가 매번 정확히 같은 사람에게 고정 주기로 가지는 않지만, 장기적으로는
+// 누적 배정 수가 똑같이 맞춰지고(공평성 유지) 겹침·연속일은 훨씬 줄어듦
+export function computeSchedule(tasks) {
+  const events = []
+  tasks.forEach(task => {
+    const eligible = taskRotation(task)
+    if (eligible.length === 0) return
+    generateTaskDates(task.startDate || task.date, task.repeat, task.repeatDays, task.endDate)
+      .forEach(date => events.push({ date, taskId: task.id, eligible }))
+  })
+  events.sort((a, b) => a.date.localeCompare(b.date) || a.taskId.localeCompare(b.taskId))
 
-// 특정 날짜에 이 잡무를 실제로 담당하는 사람
-export function taskAssigneeOn(task, dateStr) {
-  return taskOccurrences(task).find(o => o.date === dateStr)?.assignee
-}
+  const lastAssigned = {}  // 사람 이름 -> 마지막으로 뭔가 맡은 날짜
+  const totalCount = {}    // 사람 이름 -> 지금까지 누적 배정 수
+  const assignedToday = {} // 날짜 -> 그날 이미 뭔가 맡은 사람들
+  const byTask = {}        // taskId -> [{date, assignee}]
+  const byTaskDate = {}    // "taskId|date" -> assignee (빠른 조회용)
 
-// 한 사람이 이 잡무에서 실제로 맡게 되는 횟수 (라운드로빈으로 나뉜 만큼만 셈)
-export function memberWorkload(task, memberName) {
-  return taskOccurrences(task).filter(o => o.assignee === memberName).length
-}
+  events.forEach(({ date, taskId, eligible }) => {
+    if (!assignedToday[date]) assignedToday[date] = new Set()
+    const chosen = [...eligible].sort((a, b) => {
+      // 1순위: 오늘 아직 다른 잡무를 안 맡은 사람 (하루 중복 회피)
+      const aBusy = assignedToday[date].has(a) ? 1 : 0
+      const bBusy = assignedToday[date].has(b) ? 1 : 0
+      if (aBusy !== bBusy) return aBusy - bBusy
+      // 2순위: 마지막 배정일로부터 더 오래 쉰 사람 (연속일 회피)
+      const aGap = lastAssigned[a] != null ? (new Date(date) - new Date(lastAssigned[a])) / 86400000 : Infinity
+      const bGap = lastAssigned[b] != null ? (new Date(date) - new Date(lastAssigned[b])) / 86400000 : Infinity
+      if (aGap !== bGap) return bGap - aGap
+      // 3순위: 누적 배정 수가 더 적은 사람 (공평성)
+      return (totalCount[a] || 0) - (totalCount[b] || 0)
+    })[0]
 
-function addDays(dateStr, delta) {
-  const d = new Date(dateStr)
-  d.setDate(d.getDate() + delta)
-  return fmtDate(d)
-}
-
-function permutations(arr) {
-  if (arr.length <= 1) return [arr]
-  const result = []
-  for (let i = 0; i < arr.length; i++) {
-    const rest = [...arr.slice(0, i), ...arr.slice(i + 1)]
-    for (const p of permutations(rest)) result.push([arr[i], ...p])
-  }
-  return result
-}
-
-function shuffled(arr) {
-  const a = [...arr]
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[a[i], a[j]] = [a[j], a[i]]
-  }
-  return a
-}
-
-// 인원이 적으면(≤6명, ≤720가지) 순서를 전수조사, 많으면 계산량 때문에 무작위 셔플 다수로 대체
-function candidateOrders(baseOrder) {
-  if (baseOrder.length <= 6) return permutations(baseOrder)
-  const candidates = [baseOrder]
-  for (let i = 0; i < 300; i++) candidates.push(shuffled(baseOrder))
-  return candidates
-}
-
-// rotation 인원 구성은 그대로 두고 "순환 순서"만 바꿔서, 이미 정해진 다른 잡무들과
-// 같은 날 겹치거나 하루 간격으로 붙는 걸 최대한 피함. 같은 날 중복과 연속일을 똑같은
-// 무게로 벌점을 줘야 함 — 한쪽에 더 무게를 두면 그쪽만 사라지고 반대쪽으로 몰림
-// (예: 같은 날 중복을 훨씬 무겁게 벌점 주면 그건 0이 되지만 연속일이 오히려 폭증함).
-// 인원 구성 자체를 바꾸지 않으므로 각자의 전체 담당 횟수(공평성)는 그대로 유지됨
-export function bestRotationOrder(task, baseOrder, otherTasks) {
-  if (baseOrder.length <= 1) return [...baseOrder]
-
-  const occupied = {} // 사람 이름 -> 이미 다른 잡무로 잡혀있는 날짜 Set
-  otherTasks.forEach(t => {
-    taskOccurrences(t).forEach(({ date, assignee }) => {
-      if (!occupied[assignee]) occupied[assignee] = new Set()
-      occupied[assignee].add(date)
-    })
+    lastAssigned[chosen] = date
+    totalCount[chosen] = (totalCount[chosen] || 0) + 1
+    assignedToday[date].add(chosen)
+    if (!byTask[taskId]) byTask[taskId] = []
+    byTask[taskId].push({ date, assignee: chosen })
+    byTaskDate[`${taskId}|${date}`] = chosen
   })
 
-  let bestOrder = baseOrder
-  let bestScore = Infinity
-  for (const order of candidateOrders(baseOrder)) {
-    let score = 0
-    taskOccurrences({ ...task, rotation: order }).forEach(({ date, assignee }) => {
-      const taken = occupied[assignee]
-      if (!taken) return
-      if (taken.has(date)) score += 1
-      if (taken.has(addDays(date, -1))) score += 1
-      if (taken.has(addDays(date, 1))) score += 1
-    })
-    if (score < bestScore) { bestScore = score; bestOrder = order }
-  }
-  return bestOrder
+  return { byTask, byTaskDate, totalCount }
+}
+
+// schedule: computeSchedule()의 결과
+export function scheduleOccurrences(schedule, taskId) {
+  return schedule.byTask[taskId] || []
+}
+export function scheduleAssigneeOn(schedule, taskId, dateStr) {
+  return schedule.byTaskDate[`${taskId}|${dateStr}`]
+}
+export function scheduleMemberWorkload(schedule, memberName) {
+  return schedule.totalCount[memberName] || 0
 }
 
 // 잡무 전체를 전원이 돌아가며 맡도록 재배정. 한 사람이 잡무 하나를 통째로 맡는
 // 1:1 방식은 반복 주기가 서로 다른 잡무 사이에서 부담이 크게 벌어질 수밖에 없어서,
-// 잡무마다 현재 구성원 전원을 로테이션으로 묶어 발생할 때마다 돌아가며 맡게 함.
-// 순환이 시작되는 순서는 잡무별로 겹침·연속일이 가장 적은 쪽을 골라서, 한 사람이
-// 하루에 잡무 두 개를 몰아 받거나 이틀 연속으로 걸리는 일을 최대한 줄임.
-// 한 번 훑고 끝내지 않고 몇 차례 다시 훑어(좌표 하강) 잡무끼리 서로 맞춰가게 함
+// 잡무마다 현재 구성원 전원을 후보로 묶어 놓으면 computeSchedule이 알아서
+// 겹치지 않게, 그리고 고르게 나눠 배정함
 export function redistributeTasks(tasks, members) {
   if (tasks.length === 0 || members.length === 0) return []
   const sortedMembers = [...members].sort((a, b) => (a.id || '').localeCompare(b.id || ''))
-  const baseOrder = sortedMembers.map(m => m.name)
-
-  // 자주 도는(부담이 큰) 잡무일수록 겹칠 여지가 많으니 먼저 자리를 잡아줌
-  const orderByFreq = [...tasks].sort((a, b) => taskWorkload(b) - taskWorkload(a) || String(a.id).localeCompare(String(b.id)))
-
-  let current = tasks.map(t => ({ ...t, rotation: baseOrder }))
-  const PASSES = 3
-  for (let pass = 0; pass < PASSES; pass++) {
-    orderByFreq.forEach(t => {
-      const idx = current.findIndex(x => x.id === t.id)
-      const rotation = bestRotationOrder(t, baseOrder, current.filter(x => x.id !== t.id))
-      current[idx] = { ...current[idx], rotation }
-    })
-  }
-  return current.map(t => ({ id: t.id, rotation: t.rotation }))
+  const names = sortedMembers.map(m => m.name)
+  return tasks.map(t => ({ id: t.id, rotation: names }))
 }
 
 // 잡무 반복 주기 → 다음 날짜들 생성 (기본 3개월치, endDate가 그보다 이르면 endDate까지만)
