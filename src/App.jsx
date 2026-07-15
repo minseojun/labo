@@ -24,9 +24,8 @@ const TABS = [
 
 function LoadingScreen() {
   return (
-    <div style={{
+    <div className="loading-screen" style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-      height: '100vh',
       background: 'linear-gradient(160deg, #2BBD83 0%, #1F9D6B 45%, #147A4F 100%)',
     }}>
       <div style={{ fontSize: 52, fontWeight: 900, color: '#fff', letterSpacing: -4, lineHeight: 1, marginBottom: 20 }}>LABO</div>

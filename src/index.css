@@ -68,6 +68,8 @@ body {
 .content-area, .filter-row { scrollbar-width: none; }
 .content-area::-webkit-scrollbar, .filter-row::-webkit-scrollbar { display: none; }
 
+.loading-screen { height: 100vh; height: 100dvh; width: 100%; }
+
 @keyframes skeleton-pulse {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
