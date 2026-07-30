@@ -12,7 +12,7 @@ npm run dev
 ## Firebase 연동
 
 1. [Firebase Console](https://console.firebase.google.com) 에서 새 프로젝트 생성
-2. Authentication → 이메일/비밀번호 + Google 로그인 활성화
+2. Authentication → 이메일/비밀번호 로그인 활성화
 3. Firestore Database → 테스트 모드로 생성
 4. 프로젝트 설정 → 웹 앱 추가 → config 복사
 5. `src/firebase.js` 에서 `firebaseConfig` 교체
