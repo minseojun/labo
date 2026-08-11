@@ -9,6 +9,7 @@ import EquipmentTab from './components/EquipmentTab'
 import TimerTab from './components/TimerTab'
 import SuppliesTab from './components/SuppliesTab'
 import Sidebar from './components/Sidebar'
+import HazardLogScreen from './components/HazardLogScreen'
 import { useCollection, useMembers } from './hooks/useSupabase'
 import ToastContainer from './components/ToastContainer'
 import { toast } from './utils/toast'
@@ -122,7 +123,7 @@ async function loadUserAndLab(authUser) {
   let labInfo = null
   if (user.labId) {
     const { data: lab } = await supabase.from('labs').select('*').eq('id', user.labId).single()
-    if (lab) labInfo = { id: lab.id, name: lab.name, code: lab.code, profName: lab.prof_name }
+    if (lab) labInfo = { id: lab.id, name: lab.name, code: lab.code, profName: lab.prof_name, enabledModules: lab.enabled_modules || [] }
   }
   return { user, labInfo }
 }
@@ -133,6 +134,7 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('home')
   const [showSidebar, setShowSidebar] = useState(false)
+  const [showHazardLog, setShowHazardLog] = useState(false)
 
   // 타이머 — App 레벨에서 관리해서 탭 전환해도 유지
   const { timers, addTimer, updateTimer, deleteTimer } = useTimers()
@@ -297,7 +299,15 @@ export default function App() {
       {showSidebar && (
         <Sidebar user={user} labInfo={labInfo} members={members}
           onClose={() => setShowSidebar(false)}
-          onUserUpdate={updated => setUser(updated)} />
+          onUserUpdate={updated => setUser(updated)}
+          onLabUpdate={updated => setLabInfo(updated)}
+          onOpenModule={key => {
+            setShowSidebar(false)
+            if (key === 'wet_lab_hazard_log') setShowHazardLog(true)
+          }} />
+      )}
+      {showHazardLog && (
+        <HazardLogScreen labId={labId} user={user} onClose={() => setShowHazardLog(false)} />
       )}
       <ToastContainer />
     </div>
