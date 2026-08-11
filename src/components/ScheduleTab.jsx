@@ -1,11 +1,9 @@
 import React, { useState } from 'react'
-import { useMembers } from '../hooks/useSupabase'
 import CalendarSection from './schedule/CalendarSection'
 import TaskSection from './schedule/TaskSection'
 
-export default function ScheduleTab({ labId, schedules, schedulesHook, notices, noticesHook, user }) {
+export default function ScheduleTab({ labId, schedules, schedulesHook, notices, noticesHook, members, user }) {
   const [section, setSection] = useState('calendar')
-  const members = useMembers(labId)
   const tasks = schedules.filter(s => s.type === 'task')
 
   return (
