@@ -253,7 +253,7 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
                 <div className="tsk-name">{task.name}</div>
                 <div className="tsk-metarow">
                   <span className="tsk-strong" style={{ color }}>{task.todayAssignee}</span>
-                  {overridden && <span style={{ fontSize: 10, color: 'var(--green)', fontWeight: 700 }}>교체됨</span>}
+                  {overridden && <span style={{ fontSize: 10, color: 'var(--green)', fontWeight: 600 }}>교체됨</span>}
                   {!overridden && rotation.length > 1 && <span style={{ fontSize: 10, color: 'var(--text3)' }}>({rotation.length}명 순환)</span>}
                   <span className="tsk-sep" />
                   <span>{repeatLabel(task)}</span>
@@ -325,7 +325,7 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
               <label className="form-label">담당자 (여러 명 고르면 발생할 때마다 돌아가며 맡아요)</label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 <button type="button" className="opt-pill"
-                  style={{ borderRadius: 20, borderColor: 'var(--green)', background: 'var(--green-light)', color: 'var(--green)', fontWeight: 700 }}
+                  style={{ borderRadius: 20, borderColor: 'var(--green)', background: 'var(--green-light)', color: 'var(--green)', fontWeight: 600 }}
                   onClick={() => setForm(p => ({ ...p, assignees: uniqueMembers.map(m => m.name) }))}>
                   전체 인원
                 </button>
@@ -386,7 +386,7 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
               <label className="form-label">담당자 (여러 명 고르면 발생할 때마다 돌아가며 맡아요)</label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 <button type="button" className="opt-pill"
-                  style={{ borderRadius: 20, borderColor: 'var(--green)', background: 'var(--green-light)', color: 'var(--green)', fontWeight: 700 }}
+                  style={{ borderRadius: 20, borderColor: 'var(--green)', background: 'var(--green-light)', color: 'var(--green)', fontWeight: 600 }}
                   onClick={() => setEditTask(p => ({ ...p, assignees: uniqueMembers.map(m => m.name) }))}>
                   전체 인원
                 </button>

@@ -31,7 +31,7 @@ function TimerCard({ timer, onUpdate, onDelete }) {
               style={{ transition: 'stroke-dasharray .3s' }} />
           </svg>
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
-            <div style={{ fontSize: 17, fontWeight: 700, color }}>{formatTime(timeLeft)}</div>
+            <div style={{ fontSize: 17, fontWeight: 600, color }}>{formatTime(timeLeft)}</div>
             <div style={{ fontSize: 9, color: 'var(--text2)', marginTop: 1 }}>
               {done ? '완료' : running ? '실행중' : '대기'}
             </div>
@@ -166,7 +166,7 @@ export default function TimerTab({ timers, onUpdate, onDelete, onAdd, equipment 
               </select>
             </div>
             <div style={{ textAlign: 'center', marginBottom: 12 }}>
-              <span style={{ fontSize: 28, fontWeight: 700, color: 'var(--green)' }}>{formatTime(form.duration)}</span>
+              <span style={{ fontSize: 28, fontWeight: 600, color: 'var(--green)' }}>{formatTime(form.duration)}</span>
             </div>
             <button className="btn-primary" onClick={addTimer}>타이머 시작</button>
           </div>

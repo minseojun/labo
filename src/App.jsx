@@ -23,9 +23,9 @@ function LoadingScreen() {
   return (
     <div className="loading-screen" style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-      background: 'linear-gradient(160deg, #2BBD83 0%, #1F9D6B 45%, #147A4F 100%)',
+      background: 'var(--green-dark)',
     }}>
-      <div style={{ fontSize: 52, fontWeight: 900, color: '#fff', letterSpacing: -4, lineHeight: 1, marginBottom: 20 }}>LABO</div>
+      <div style={{ fontSize: 44, fontWeight: 700, color: '#fff', letterSpacing: -2, lineHeight: 1, marginBottom: 20 }}>LABO</div>
       <div style={{ display: 'flex', gap: 6 }}>
         {[0, 1, 2].map(i => (
           <div key={i} style={{
@@ -241,7 +241,7 @@ export default function App() {
         transition: 'box-shadow .2s ease',
       }}>
         <div>
-          <div style={{ fontWeight: 900, fontSize: 21, color: 'var(--green)', letterSpacing: -1.5, lineHeight: 1 }}>LABO</div>
+          <div style={{ fontWeight: 700, fontSize: 20, color: 'var(--green)', letterSpacing: -1, lineHeight: 1 }}>LABO</div>
           {labInfo?.name && (
             <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2, fontWeight: 500 }}>
               {labInfo.name.length > 14 ? labInfo.name.slice(0, 14) + '…' : labInfo.name}
@@ -249,13 +249,12 @@ export default function App() {
           )}
         </div>
         <button onClick={() => { haptic.light(); setShowSidebar(true) }} style={{
-          width: 38, height: 38, borderRadius: '50%',
-          background: 'linear-gradient(135deg, var(--green-light) 0%, #d0eddf 100%)',
-          border: '1.5px solid var(--green-light)',
+          width: 36, height: 36, borderRadius: '50%',
+          background: 'var(--green-light)',
+          border: '1px solid var(--border)',
           color: 'var(--green)', cursor: 'pointer',
-          fontWeight: 700, fontSize: 18,
+          fontWeight: 650, fontSize: 16,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 2px 8px rgba(31,157,107,0.18)',
         }}>
           {user.avatar || user.name?.slice(-1)}
         </button>
@@ -306,7 +305,7 @@ export default function App() {
                 position: 'absolute', top: 4, right: '50%', transform: 'translateX(10px)',
                 width: 16, height: 16, borderRadius: '50%',
                 background: 'var(--red)', color: '#fff',
-                fontSize: 9, fontWeight: 700,
+                fontSize: 9, fontWeight: 600,
                 display: 'flex', alignItems: 'center', justifyContent: 'center'
               }}>{runningCount}</div>
             )}

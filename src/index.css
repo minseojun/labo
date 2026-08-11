@@ -34,9 +34,9 @@ html { overscroll-behavior-y: none; }
   --shadow-xl: 0 20px 60px rgba(14,17,23,0.13), 0 8px 20px rgba(14,17,23,0.06);
   --shadow-green: 0 4px 18px rgba(31,157,107,0.38);
 
-  --radius: 20px;
-  --radius-md: 16px;
-  --radius-sm: 12px;
+  --radius: 16px;
+  --radius-md: 14px;
+  --radius-sm: 10px;
   --radius-xs: 8px;
 }
 

@@ -161,7 +161,7 @@ function CommentSection({ labId, equipmentId, user }) {
 
   return (
     <div style={{ marginTop: 16 }}>
-      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: .5 }}>
+      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: .5 }}>
         댓글 {comments.length > 0 ? `(${comments.length})` : ''}
       </div>
 
@@ -174,9 +174,9 @@ function CommentSection({ labId, equipmentId, user }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
             <div style={{
               width: 24, height: 24, borderRadius: '50%',
-              background: c.role === '교수' ? 'var(--purple-light)' : 'var(--green-light)',
-              color: c.role === '교수' ? 'var(--purple)' : 'var(--green)',
-              fontSize: 10, fontWeight: 700,
+              background: 'var(--bg)', border: '1px solid var(--border)',
+              color: 'var(--text2)',
+              fontSize: 10, fontWeight: 600,
               display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
             }}>{c.author?.slice(-1)}</div>
             <span style={{ fontSize: 12, fontWeight: 600 }}>{c.author}</span>
@@ -350,7 +350,7 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
               <div style={{ width: 48, height: 48, borderRadius: 12, background: bgColor(sel.status), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>{sel.icon || '🔬'}</div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 700, fontSize: 17 }}>{sel.name}</div>
+                <div style={{ fontWeight: 600, fontSize: 17 }}>{sel.name}</div>
                 <div style={{ fontSize: 12, color: 'var(--text2)' }}>{sel.code}</div>
               </div>
               <StatusChip status={sel.status} />
@@ -394,7 +394,7 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
               </div>
             )}
 
-            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)', margin: '14px 0 8px', textTransform: 'uppercase', letterSpacing: .5 }}>사용 이력</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', margin: '14px 0 8px', textTransform: 'uppercase', letterSpacing: .5 }}>사용 이력</div>
             {(!sel.logs || sel.logs.length === 0) ? (
               <div style={{ textAlign: 'center', padding: '10px 0', fontSize: 12, color: 'var(--text2)' }}>사용 이력이 없습니다</div>
             ) : [...sel.logs].reverse().slice(0, 8).map((l, i) => (
