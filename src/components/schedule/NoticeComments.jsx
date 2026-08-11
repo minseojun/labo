@@ -65,7 +65,7 @@ export default function NoticeComments({ labId, noticeId, user }) {
           {comments.map(c => (
             <div key={c.id} style={{ marginBottom: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-                <div style={{ width: 24, height: 24, borderRadius: '50%', background: c.role === '교수' ? 'var(--purple-light)' : 'var(--green-light)', color: c.role === '교수' ? 'var(--purple)' : 'var(--green)', fontSize: c.avatar ? 14 : 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text2)', fontSize: c.avatar ? 14 : 10, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   {c.avatar || c.author?.slice(-1)}
                 </div>
                 <span style={{ fontSize: 12, fontWeight: 600 }}>{c.author}</span>

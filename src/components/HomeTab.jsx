@@ -136,26 +136,23 @@ export default function HomeTab({ user, schedules, schedulesHook, supplies, noti
 
       {/* 히어로 헤더 */}
       <div style={{
-        background: 'linear-gradient(135deg, #2BBD83 0%, #1F9D6B 60%, #157A52 100%)',
-        padding: '18px 20px 26px', color: '#fff', position: 'relative', overflow: 'hidden',
-        borderRadius: '0 0 28px 28px', boxShadow: '0 14px 28px -12px rgba(20,122,79,0.35)',
+        background: 'var(--green-dark)',
+        padding: '18px 20px 26px', color: '#fff', position: 'relative',
+        borderRadius: '0 0 20px 20px',
         margin: '0 0 4px',
       }}>
-        <div style={{ position: 'absolute', top: -40, right: -40, width: 160, height: 160, borderRadius: '50%', background: 'rgba(255,255,255,0.06)' }} />
-        <div style={{ position: 'absolute', bottom: -20, right: 50, width: 80, height: 80, borderRadius: '50%', background: 'rgba(255,255,255,0.04)' }} />
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, position: 'relative' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <div style={{
-            width: 52, height: 52, borderRadius: '50%',
-            background: 'rgba(255,255,255,0.2)', border: '2px solid rgba(255,255,255,0.35)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, flexShrink: 0,
+            width: 48, height: 48, borderRadius: '50%',
+            background: 'rgba(255,255,255,0.16)', border: '1px solid rgba(255,255,255,0.25)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0,
           }}>{user.avatar || user.name?.slice(-1)}</div>
 
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 13, opacity: .8, marginBottom: 3 }}>{greeting}</div>
-            <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: -.5 }}>{user.name}</div>
+            <div style={{ fontSize: 19, fontWeight: 650, letterSpacing: -.3 }}>{user.name}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5 }}>
-              <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 9px', background: rs.bg, borderRadius: 20, color: rs.color }}>{user.role}</span>
+              <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 9px', background: rs.bg, border: '1px solid rgba(255,255,255,0.25)', borderRadius: 20, color: rs.color }}>{user.role}</span>
               <span style={{ fontSize: 11, opacity: .7 }}>{today.getMonth() + 1}월 {today.getDate()}일 {DAYS[today.getDay()]}요일</span>
             </div>
           </div>
@@ -171,7 +168,7 @@ export default function HomeTab({ user, schedules, schedulesHook, supplies, noti
         }}>
           <Icon.AlertTriangle size={18} strokeWidth={1.8} style={{ color: '#c42e2e', flexShrink: 0 }} />
           <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 700, fontSize: 12, color: '#c42e2e' }}>재고 없음 — 즉시 확인 필요</div>
+            <div style={{ fontWeight: 600, fontSize: 12, color: '#c42e2e' }}>재고 없음 — 즉시 확인 필요</div>
             <div style={{ fontSize: 11, color: '#c42e2e', opacity: .8, marginTop: 1 }}>{redSupplies.map(s => s.name).join(', ')}</div>
           </div>
           <Icon.ChevronRight size={15} strokeWidth={1.8} style={{ color: '#c42e2e', flexShrink: 0 }} />
@@ -181,7 +178,7 @@ export default function HomeTab({ user, schedules, schedulesHook, supplies, noti
       {/* 오늘 할 일 — 오늘 일정 + 오늘 잡무 + 개인 할 일 통합 */}
       <div style={{ margin: '20px 16px 0' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-          <span style={{ fontSize: 14, fontWeight: 800, letterSpacing: -.3 }}>오늘 할 일</span>
+          <span style={{ fontSize: 14, fontWeight: 650, letterSpacing: -.3 }}>오늘 할 일</span>
           {checkableItems.length > 0 ? (
             <span style={{ fontSize: 11, color: 'var(--text2)' }}>{doneCount}/{checkableItems.length} 완료</span>
           ) : !disabledTabs.includes('schedule') && (
@@ -195,13 +192,13 @@ export default function HomeTab({ user, schedules, schedulesHook, supplies, noti
           <div style={{ height: 4, background: 'var(--border)', borderRadius: 2, marginBottom: 10, overflow: 'hidden' }}>
             <div style={{
               height: '100%', borderRadius: 2,
-              background: 'linear-gradient(90deg, var(--green-mid), var(--green))',
+              background: 'var(--green)',
               width: `${(doneCount / checkableItems.length) * 100}%`, transition: 'width .35s ease',
             }} />
           </div>
         )}
 
-        <div style={{ background: 'var(--card)', borderRadius: 16, boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
+        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, boxShadow: 'var(--shadow-xs)', overflow: 'hidden' }}>
           {combinedItems.length === 0 && (
             <div style={{ textAlign: 'center', padding: '24px 16px', color: 'var(--text2)' }}>
               <Icon.Sparkle size={26} strokeWidth={1.5} style={{ marginBottom: 8, opacity: .55 }} />
@@ -267,7 +264,7 @@ export default function HomeTab({ user, schedules, schedulesHook, supplies, noti
             </div>
             {newTodo.trim() && (
               <div style={{ padding: '0 14px 10px' }}>
-                <button onClick={addTodo} style={{ width: '100%', padding: '8px', background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>추가</button>
+                <button onClick={addTodo} style={{ width: '100%', padding: '8px', background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>추가</button>
               </div>
             )}
           </div>
@@ -277,9 +274,9 @@ export default function HomeTab({ user, schedules, schedulesHook, supplies, noti
       {/* 다음 잡무 — 디데이 가장 가까운 것 하나만 */}
       {nextTask && !disabledTabs.includes('schedule') && (
         <div style={{ margin: '16px 16px 0' }}>
-          <div style={{ fontSize: 14, fontWeight: 800, letterSpacing: -.3, marginBottom: 10 }}>다음 잡무</div>
+          <div style={{ fontSize: 14, fontWeight: 650, letterSpacing: -.3, marginBottom: 10 }}>다음 잡무</div>
           <div onClick={() => setActiveTab('schedule')} style={{
-            background: 'var(--card)', borderRadius: 16, boxShadow: 'var(--shadow-sm)',
+            background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, boxShadow: 'var(--shadow-xs)',
             padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer',
           }}>
             <div style={{ width: 4, height: 36, borderRadius: 2, flexShrink: 0, background: 'var(--yellow)' }} />
@@ -288,7 +285,7 @@ export default function HomeTab({ user, schedules, schedulesHook, supplies, noti
               <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>{nextTask.nextDate}</div>
             </div>
             {dday(nextTask.nextDate) && (
-              <span style={{ fontSize: 11, fontWeight: 700, color: dday(nextTask.nextDate).color, flexShrink: 0 }}>{dday(nextTask.nextDate).label}</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: dday(nextTask.nextDate).color, flexShrink: 0 }}>{dday(nextTask.nextDate).label}</span>
             )}
           </div>
         </div>
@@ -298,7 +295,7 @@ export default function HomeTab({ user, schedules, schedulesHook, supplies, noti
       {timers.filter(t => t.running || t.done).length > 0 && !disabledTabs.includes('timer') && (
         <div style={{ margin: '16px 16px 0' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <span style={{ fontSize: 14, fontWeight: 800, letterSpacing: -.3 }}>실행 중 타이머</span>
+            <span style={{ fontSize: 14, fontWeight: 650, letterSpacing: -.3 }}>실행 중 타이머</span>
             <button onClick={() => setActiveTab('timer')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--green)', fontWeight: 600, padding: 0 }}>전체 보기 ›</button>
           </div>
           <div style={{ display: 'flex', gap: 10, overflowX: 'auto', scrollbarWidth: 'none' }}>
@@ -310,11 +307,11 @@ export default function HomeTab({ user, schedules, schedulesHook, supplies, noti
                 padding: '12px 14px', cursor: 'pointer',
                 boxShadow: 'var(--shadow-xs)',
               }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: t.done ? 'var(--red)' : 'var(--green)', marginBottom: 4 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: t.done ? 'var(--red)' : 'var(--green)', marginBottom: 4 }}>
                   {t.done ? '완료' : '실행중'}
                 </div>
                 <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, lineHeight: 1.3 }}>{t.name}</div>
-                <div style={{ fontSize: 20, fontWeight: 900, color: t.done ? 'var(--red)' : 'var(--green)', letterSpacing: -1 }}>
+                <div style={{ fontSize: 20, fontWeight: 600, color: t.done ? 'var(--red)' : 'var(--green)', letterSpacing: -1 }}>
                   {formatTime(t.timeLeft)}
                 </div>
               </div>
@@ -327,18 +324,18 @@ export default function HomeTab({ user, schedules, schedulesHook, supplies, noti
       {shownNotices.length > 0 && (
         <div style={{ margin: '16px 16px 0' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <span style={{ fontSize: 14, fontWeight: 800, letterSpacing: -.3 }}>공지</span>
+            <span style={{ fontSize: 14, fontWeight: 650, letterSpacing: -.3 }}>공지</span>
             {!disabledTabs.includes('schedule') && (
               <button onClick={() => setActiveTab('schedule')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--green)', fontWeight: 600, padding: 0 }}>전체 보기 ›</button>
             )}
           </div>
-          <div style={{ background: 'var(--card)', borderRadius: 16, boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
+          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, boxShadow: 'var(--shadow-xs)', overflow: 'hidden' }}>
             {shownNotices.map((n, i) => (
               <div key={n.id} style={{
                 padding: '13px 14px',
                 borderBottom: i < shownNotices.length - 1 ? '1px solid var(--border)' : 'none',
               }}>
-                {n.pinned && <div style={{ fontSize: 10, color: 'var(--red)', fontWeight: 700, marginBottom: 3 }}>고정</div>}
+                {n.pinned && <div style={{ fontSize: 10, color: 'var(--red)', fontWeight: 600, marginBottom: 3 }}>고정</div>}
                 <div style={{ fontSize: 13, fontWeight: 500, lineHeight: 1.5 }}>{n.body}</div>
                 <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 5, display: 'flex', gap: 6 }}>
                   <span>{n.author}</span>

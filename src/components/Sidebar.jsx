@@ -1,6 +1,5 @@
 import React, { useState } from 'react'
 import { supabase } from '../supabase'
-import { memberColor, assignMemberColors } from '../utils'
 import { toast } from '../utils/toast'
 import { haptic } from '../utils/haptics'
 import { Icon } from './Icon'
@@ -15,7 +14,7 @@ function SidebarGroup({ title, subtitle, right, onHeaderClick, children }) {
     <div style={{ margin: '0 16px 16px' }}>
       <div onClick={onHeaderClick} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 4px 8px', cursor: onHeaderClick ? 'pointer' : 'default' }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: .6 }}>{title}</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: .6 }}>{title}</div>
           {subtitle && <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>{subtitle}</div>}
         </div>
         {right}
@@ -71,7 +70,6 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate,
   }
 
   const uniqueMembers = members.filter((m, i, arr) => arr.findIndex(x => x.id === m.id) === i)
-  const colorMap = assignMemberColors(uniqueMembers)
   const isAdmin = user.role === '교수'
 
   const [deleting, setDeleting] = useState(false)
@@ -172,9 +170,9 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate,
           <button onClick={onClose} style={{ position: 'absolute', top: 'calc(16px + env(safe-area-inset-top, 0px))', right: 16, background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', width: 32, height: 32, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icon.X size={16} strokeWidth={2} /></button>
           <div style={{ width: 68, height: 68, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', border: '2px solid rgba(255,255,255,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 34, marginBottom: 12 }}>{avatar}</div>
           {editing ? (
-            <input value={newName} onChange={e => setNewName(e.target.value)} style={{ fontSize: 18, fontWeight: 700, color: '#fff', background: 'rgba(255,255,255,0.15)', border: '1.5px solid rgba(255,255,255,0.5)', borderRadius: 8, padding: '4px 10px', width: '100%', outline: 'none', fontFamily: 'inherit', marginBottom: 4 }} onKeyDown={e => e.key === 'Enter' && handleSave()} autoFocus />
+            <input value={newName} onChange={e => setNewName(e.target.value)} style={{ fontSize: 18, fontWeight: 600, color: '#fff', background: 'rgba(255,255,255,0.15)', border: '1.5px solid rgba(255,255,255,0.5)', borderRadius: 8, padding: '4px 10px', width: '100%', outline: 'none', fontFamily: 'inherit', marginBottom: 4 }} onKeyDown={e => e.key === 'Enter' && handleSave()} autoFocus />
           ) : (
-            <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 2 }}>{user.name}</div>
+            <div style={{ fontWeight: 600, fontSize: 18, marginBottom: 2 }}>{user.name}</div>
           )}
           <div style={{ fontSize: 12, opacity: .8 }}>{user.email}</div>
           <div style={{ display: 'inline-flex', marginTop: 8, padding: '3px 10px', background: 'rgba(255,255,255,0.2)', borderRadius: 20, fontSize: 12, fontWeight: 600 }}>{user.role}</div>
@@ -186,7 +184,7 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate,
         {/* 프로필 편집 */}
         {editing && (
           <div style={{ padding: '16px 20px', background: 'var(--card)', borderBottom: '1px solid var(--border)' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: .6 }}>아바타 선택</div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text2)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: .6 }}>아바타 선택</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
               {AVATARS.map(av => (
                 <button key={av} onClick={() => setSelAvatar(av)} style={{ width: 40, height: 40, borderRadius: '50%', fontSize: 20, border: `2px solid ${selAvatar === av ? 'var(--green)' : 'var(--border)'}`, background: selAvatar === av ? 'var(--green-light)' : 'var(--card)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{av}</button>
@@ -207,7 +205,7 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate,
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 600, fontSize: 14 }}>{labInfo?.name || '연구실'}</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
-                  <div style={{ background: 'var(--green-light)', color: 'var(--green)', padding: '3px 10px', borderRadius: 7, fontSize: 12, fontWeight: 700, letterSpacing: 1 }}>{labInfo?.code}</div>
+                  <div style={{ background: 'var(--green-light)', color: 'var(--green)', padding: '3px 10px', borderRadius: 7, fontSize: 12, fontWeight: 600, letterSpacing: 1 }}>{labInfo?.code}</div>
                   <span style={{ fontSize: 11, color: 'var(--text2)' }}>초대코드</span>
                 </div>
               </div>
@@ -219,7 +217,7 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate,
             {uniqueMembers.map((m, i) => (
               <GroupRow key={m.id} last={i === uniqueMembers.length - 1}
                 onClick={isAdmin && m.id !== user.id ? () => setManagingMember(m) : undefined}>
-                <div style={{ width: 34, height: 34, borderRadius: '50%', background: `${colorMap[m.name] || memberColor(m.name)}20`, color: colorMap[m.name] || memberColor(m.name), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: m.avatar ? 18 : 12, fontWeight: 700, flexShrink: 0 }}>
+                <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--green-light)', border: '1px solid #c8ecd9', color: 'var(--green)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: m.avatar ? 18 : 12, fontWeight: 600, flexShrink: 0 }}>
                   {m.avatar || m.name?.slice(-1)}
                 </div>
                 <div style={{ flex: 1 }}>
@@ -304,15 +302,15 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate,
           <div style={{ background: 'var(--card)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 320, padding: 20, position: 'relative', zIndex: 1, animation: 'slideUp .25s ease' }}>
             <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--border)', margin: '0 auto 16px' }} />
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-              <div style={{ width: 48, height: 48, borderRadius: '50%', background: `${colorMap[managingMember.name] || memberColor(managingMember.name)}20`, color: colorMap[managingMember.name] || memberColor(managingMember.name), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: managingMember.avatar ? 26 : 16, fontWeight: 700 }}>
+              <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--green-light)', border: '1px solid #c8ecd9', color: 'var(--green)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: managingMember.avatar ? 26 : 16, fontWeight: 600 }}>
                 {managingMember.avatar || managingMember.name?.slice(-1)}
               </div>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 17 }}>{managingMember.name}</div>
+                <div style={{ fontWeight: 600, fontSize: 17 }}>{managingMember.name}</div>
                 <div style={{ fontSize: 12, color: 'var(--text2)' }}>{managingMember.role}</div>
               </div>
             </div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: .6 }}>역할 변경</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: .6 }}>역할 변경</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
               {ROLES.map(r => (
                 <button key={r} onClick={() => handleRoleChange(managingMember.id, r)} style={{ padding: '10px', border: `2px solid ${managingMember.role === r ? 'var(--green)' : 'var(--border)'}`, borderRadius: 10, background: managingMember.role === r ? 'var(--green-light)' : 'var(--card)', fontSize: 13, fontWeight: 600, cursor: 'pointer', color: managingMember.role === r ? 'var(--green)' : 'var(--text2)' }}>{r}</button>
@@ -334,7 +332,7 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate,
 
             {showInfo === 'notify' && (
               <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 17, marginBottom: 12 }}><Icon.Bell size={19} strokeWidth={1.7} /> 알림 설정</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, fontSize: 17, marginBottom: 12 }}><Icon.Bell size={19} strokeWidth={1.7} /> 알림 설정</div>
                 <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.6, marginBottom: 16 }}>
                   타이머가 끝나거나, 오늘·내일 내 잡무 당번이 있으면 브라우저 알림으로 알려드려요.
                 </div>
@@ -356,7 +354,7 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate,
 
             {showInfo === 'help' && (
               <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 17, marginBottom: 14 }}><Icon.HelpCircle size={19} strokeWidth={1.7} /> 도움말</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, fontSize: 17, marginBottom: 14 }}><Icon.HelpCircle size={19} strokeWidth={1.7} /> 도움말</div>
                 {[
                   [Icon.Home, '홈', '오늘 일정과 잡무, 할 일, 공지를 한눈에 모아 보여줘요.'],
                   [Icon.Calendar, '일정', '연구실 공용/개인 일정과 공지사항을 관리해요.'],
@@ -378,7 +376,7 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate,
 
             {showInfo === 'about' && (
               <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 17, marginBottom: 4 }}><Icon.Info size={19} strokeWidth={1.7} /> 서비스 정보</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, fontSize: 17, marginBottom: 4 }}><Icon.Info size={19} strokeWidth={1.7} /> 서비스 정보</div>
                 <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 16 }}>LABO · 연구실 올인원 운영 플랫폼</div>
                 <div style={{ fontSize: 13, lineHeight: 2, color: 'var(--text2)' }}>
                   <div>소속 연구실: <span style={{ color: 'var(--text)', fontWeight: 600 }}>{labInfo?.name || '연구실'}</span></div>

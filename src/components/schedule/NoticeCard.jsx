@@ -36,7 +36,7 @@ export default function NoticeCard({ n, labId, user, noticesHook, hidden }) {
   return (
     <div className="notice-card" style={{ borderColor: n.pinned ? '#f8c5c5' : 'var(--border)', opacity: hidden ? .7 : 1, background: hidden ? 'var(--bg)' : 'var(--card)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-        {n.pinned && <span style={{ fontSize: 10, color: 'var(--red)', fontWeight: 700, background: 'var(--red-light)', padding: '2px 7px', borderRadius: 20 }}>고정</span>}
+        {n.pinned && <span style={{ fontSize: 10, color: 'var(--red)', fontWeight: 600, background: 'var(--red-light)', border: '1px solid #f5c0c0', padding: '2px 7px', borderRadius: 20 }}>고정</span>}
         {hidden && <span style={{ fontSize: 10, color: 'var(--text2)', fontWeight: 600, background: 'var(--border)', padding: '2px 7px', borderRadius: 20 }}>숨김</span>}
       </div>
       <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 8, color: hidden ? 'var(--text2)' : 'var(--text)' }}>{n.body}</div>

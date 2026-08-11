@@ -34,7 +34,7 @@ export default function TaskCalendar({ tasks, members, onSelectDate, selectedDat
   return (
     <div style={{ margin: '0 16px 18px', background: 'var(--card)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-sm)', padding: '14px 14px 12px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <span style={{ fontWeight: 700, fontSize: 15, letterSpacing: '-.3px' }}>{year}년 {month + 1}월</span>
+        <span style={{ fontWeight: 600, fontSize: 15, letterSpacing: '-.3px' }}>{year}년 {month + 1}월</span>
         <div style={{ display: 'flex', gap: 2 }}>
           <button onClick={() => { const d = new Date(baseDate); d.setMonth(d.getMonth() - 1); setBaseDate(d) }}
             style={{ background: 'var(--bg)', border: 'none', cursor: 'pointer', fontSize: 16, color: 'var(--text2)', width: 30, height: 30, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>‹</button>

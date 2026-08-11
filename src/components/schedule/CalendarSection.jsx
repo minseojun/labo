@@ -152,7 +152,7 @@ export default function CalendarSection({ labId, schedules, schedulesHook, notic
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 16px 8px' }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: .6 }}>공지사항</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: .6 }}>공지사항</span>
         {hiddenNotices.length > 0 && (
           <button onClick={() => setShowHidden(p => !p)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--text2)', fontWeight: 600 }}>
             {showHidden ? '숨김 닫기' : '숨긴 공지'}

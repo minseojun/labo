@@ -133,9 +133,6 @@ export default function AuthScreen({ onLogin }) {
     <div className="auth-screen">
       {/* 그린 히어로 영역 */}
       <div className="auth-hero">
-        <div className="auth-hero-deco" style={{ width: 220, height: 220, top: -80, right: -60 }} />
-        <div className="auth-hero-deco" style={{ width: 100, height: 100, top: 30, right: 60, opacity: .5 }} />
-        <div className="auth-hero-deco" style={{ width: 60, height: 60, bottom: -10, left: 40, opacity: .4 }} />
         <div className="auth-logo">LABO</div>
         <div className="auth-tagline">연구실 올인원 운영 플랫폼</div>
       </div>
@@ -196,7 +193,7 @@ export default function AuthScreen({ onLogin }) {
                   borderRadius: 12,
                   background: mode === m.k ? 'var(--green-ultra)' : 'var(--card)',
                   color: mode === m.k ? 'var(--green)' : 'var(--text2)',
-                  fontWeight: 700, fontSize: 13, cursor: 'pointer',
+                  fontWeight: 600, fontSize: 13, cursor: 'pointer',
                   transition: 'all .2s', fontFamily: 'inherit',
                   display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4
                 }}>
@@ -233,7 +230,7 @@ export default function AuthScreen({ onLogin }) {
                         cursor: 'pointer', textAlign: 'center', transition: 'all .15s',
                         fontFamily: 'inherit',
                       }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: role === r.value ? 'var(--green)' : 'var(--text)' }}>{r.value}</div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: role === r.value ? 'var(--green)' : 'var(--text)' }}>{r.value}</div>
                         <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 2 }}>{r.desc}</div>
                       </button>
                     ))}

@@ -12,9 +12,9 @@ const CATEGORIES = [
   ['other', '기타'],
 ]
 const SEVERITIES = [
-  ['low', '경미', 'var(--green)', 'var(--green-light)'],
-  ['medium', '보통', '#b97b10', 'var(--yellow-light)'],
-  ['high', '심각', 'var(--red)', 'var(--red-light)'],
+  ['low', '경미', 'var(--green)', 'var(--green-light)', '#c8ecd9'],
+  ['medium', '보통', '#b97b10', 'var(--yellow-light)', '#f5dfa0'],
+  ['high', '심각', 'var(--red)', 'var(--red-light)', '#f5c0c0'],
 ]
 const categoryLabel = v => CATEGORIES.find(c => c[0] === v)?.[1] || v
 const severityInfo = v => SEVERITIES.find(s => s[0] === v) || SEVERITIES[0]
@@ -85,7 +85,7 @@ export default function HazardLogScreen({ labId, user }) {
               <div style={{ fontWeight: 600, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inc.title}</div>
               <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>{categoryLabel(inc.category)} · {inc.occurredAt} · {inc.reporter}</div>
             </div>
-            <span className="chip" style={{ background: sev[3], color: sev[2] }}>{sev[1]}</span>
+            <span className="chip" style={{ background: sev[3], color: sev[2], borderColor: sev[4] }}>{sev[1]}</span>
           </div>
         )
       })}
@@ -154,10 +154,10 @@ export default function HazardLogScreen({ labId, user }) {
                 <Icon.AlertTriangle size={24} />
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 700, fontSize: 17 }}>{sel.title}</div>
+                <div style={{ fontWeight: 600, fontSize: 17 }}>{sel.title}</div>
                 <div style={{ fontSize: 12, color: 'var(--text2)' }}>{categoryLabel(sel.category)} · {sel.occurredAt}</div>
               </div>
-              <span className="chip" style={{ background: severityInfo(sel.severity)[3], color: severityInfo(sel.severity)[2] }}>{severityInfo(sel.severity)[1]}</span>
+              <span className="chip" style={{ background: severityInfo(sel.severity)[3], color: severityInfo(sel.severity)[2], borderColor: severityInfo(sel.severity)[4] }}>{severityInfo(sel.severity)[1]}</span>
             </div>
             {sel.location && (
               <div className="log-item"><span style={{ color: 'var(--text2)' }}>장소</span><span>{sel.location}</span></div>
@@ -165,7 +165,7 @@ export default function HazardLogScreen({ labId, user }) {
             <div className="log-item"><span style={{ color: 'var(--text2)' }}>작성자</span><span>{sel.reporter}</span></div>
             {sel.actionTaken && (
               <div style={{ marginTop: 10 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: .5 }}>조치 사항</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: .5 }}>조치 사항</div>
                 <div style={{ background: 'var(--bg)', borderRadius: 10, padding: '10px 12px', fontSize: 13 }}>{sel.actionTaken}</div>
               </div>
             )}

@@ -144,7 +144,7 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
                 <div style={{ width: 14, height: 14, borderRadius: '50%', background: statusColor(sel.status) }} />
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 700, fontSize: 17 }}>{sel.name}</div>
+                <div style={{ fontWeight: 600, fontSize: 17 }}>{sel.name}</div>
                 <div style={{ fontSize: 12, color: 'var(--text2)' }}>{sel.spec}</div>
               </div>
             </div>
@@ -158,7 +158,7 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
                 ))}
               </div>
             )}
-            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: .5 }}>변경 이력</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: .5 }}>변경 이력</div>
             {sel.history.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '12px 0', fontSize: 12, color: 'var(--text2)' }}>변경 이력이 없습니다</div>
             ) : [...sel.history].reverse().map((h, i) => (
