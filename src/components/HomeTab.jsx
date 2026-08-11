@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { DAYS } from '../mockData'
 import { fmtDate, formatTime, computeSchedule, scheduleAssigneeOn, scheduleOccurrences } from '../utils'
+import { Icon } from './Icon'
 
 const typeStyle = {
   lab:  { bar: 'var(--green)',  chip: 'chip-green',  label: '공용' },
@@ -74,7 +75,7 @@ export default function HomeTab({ user, schedules, schedulesHook, supplies, noti
     const lines = []
     if (myToday.length > 0) lines.push(`오늘: ${myToday.map(t => t.name).join(', ')}`)
     if (myTomorrow.length > 0) lines.push(`내일: ${myTomorrow.map(t => t.name).join(', ')}`)
-    new Notification('🧹 잡무 당번 알림', { body: lines.join('\n') })
+    new Notification('잡무 당번 알림', { body: lines.join('\n') })
     localStorage.setItem(notifyKey, '1')
   }, [schedule, taskSchedules, todayStr])
 
@@ -103,7 +104,7 @@ export default function HomeTab({ user, schedules, schedulesHook, supplies, noti
   const redSupplies = supplies.filter(s => s.status === 'red')
 
   const hour = today.getHours()
-  const greeting = hour < 12 ? '좋은 아침이에요 ☀️' : hour < 18 ? '좋은 오후예요 🌤' : '수고했어요 🌙'
+  const greeting = hour < 12 ? '좋은 아침이에요' : hour < 18 ? '좋은 오후예요' : '수고했어요'
 
   const roleStyle = r => r === '교수'
     ? { bg: 'rgba(255,255,255,0.25)', color: '#fff' }
@@ -168,12 +169,12 @@ export default function HomeTab({ user, schedules, schedulesHook, supplies, noti
           background: 'var(--red-light)', border: '1px solid #f5c0c0',
           borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
         }}>
-          <span style={{ fontSize: 16 }}>🚨</span>
+          <Icon.AlertTriangle size={18} strokeWidth={1.8} style={{ color: '#c42e2e', flexShrink: 0 }} />
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 700, fontSize: 12, color: '#c42e2e' }}>재고 없음 — 즉시 확인 필요</div>
             <div style={{ fontSize: 11, color: '#c42e2e', opacity: .8, marginTop: 1 }}>{redSupplies.map(s => s.name).join(', ')}</div>
           </div>
-          <span style={{ color: '#c42e2e', fontSize: 16 }}>›</span>
+          <Icon.ChevronRight size={15} strokeWidth={1.8} style={{ color: '#c42e2e', flexShrink: 0 }} />
         </div>
       )}
 
@@ -203,7 +204,7 @@ export default function HomeTab({ user, schedules, schedulesHook, supplies, noti
         <div style={{ background: 'var(--card)', borderRadius: 16, boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
           {combinedItems.length === 0 && (
             <div style={{ textAlign: 'center', padding: '24px 16px', color: 'var(--text2)' }}>
-              <div style={{ fontSize: 30, marginBottom: 8 }}>☀️</div>
+              <Icon.Sparkle size={26} strokeWidth={1.5} style={{ marginBottom: 8, opacity: .55 }} />
               <div style={{ fontSize: 13, fontWeight: 500 }}>오늘은 여유로운 하루예요</div>
             </div>
           )}
@@ -310,7 +311,7 @@ export default function HomeTab({ user, schedules, schedulesHook, supplies, noti
                 boxShadow: 'var(--shadow-xs)',
               }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: t.done ? 'var(--red)' : 'var(--green)', marginBottom: 4 }}>
-                  {t.done ? '✅ 완료' : '⏱ 실행중'}
+                  {t.done ? '완료' : '실행중'}
                 </div>
                 <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, lineHeight: 1.3 }}>{t.name}</div>
                 <div style={{ fontSize: 20, fontWeight: 900, color: t.done ? 'var(--red)' : 'var(--green)', letterSpacing: -1 }}>
@@ -337,7 +338,7 @@ export default function HomeTab({ user, schedules, schedulesHook, supplies, noti
                 padding: '13px 14px',
                 borderBottom: i < shownNotices.length - 1 ? '1px solid var(--border)' : 'none',
               }}>
-                {n.pinned && <div style={{ fontSize: 10, color: 'var(--red)', fontWeight: 700, marginBottom: 3 }}>📌 고정</div>}
+                {n.pinned && <div style={{ fontSize: 10, color: 'var(--red)', fontWeight: 700, marginBottom: 3 }}>고정</div>}
                 <div style={{ fontSize: 13, fontWeight: 500, lineHeight: 1.5 }}>{n.body}</div>
                 <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 5, display: 'flex', gap: 6 }}>
                   <span>{n.author}</span>

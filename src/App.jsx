@@ -9,15 +9,15 @@ import EquipmentTab from './components/EquipmentTab'
 import TimerTab from './components/TimerTab'
 import SuppliesTab from './components/SuppliesTab'
 import Sidebar from './components/Sidebar'
-import HazardLogScreen from './components/HazardLogScreen'
+import { Icon } from './components/Icon'
 import { useCollection, useMembers } from './hooks/useSupabase'
 import ToastContainer from './components/ToastContainer'
 import { toast } from './utils/toast'
 import { haptic } from './utils/haptics'
-import { CORE_TABS } from './modules'
+import { CORE_TABS, MODULES, isModuleEnabled } from './modules'
 import './App.css'
 
-const TABS = [{ id: 'home', icon: '🏠', label: '홈' }, ...CORE_TABS]
+const TABS = [{ id: 'home', icon: Icon.Home, label: '홈' }, ...CORE_TABS]
 
 function LoadingScreen() {
   return (
@@ -55,7 +55,7 @@ function useTimers() {
           delete intervalsRef.current[id]
           // 브라우저 알림
           if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification(`⏱ ${t.name} 완료!`, { body: '실험이 완료되었습니다.' })
+            new Notification(`${t.name} 완료!`, { body: '실험이 완료되었습니다.' })
           }
           return { ...t, timeLeft: 0, running: false, done: true }
         }
@@ -133,7 +133,6 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('home')
   const [showSidebar, setShowSidebar] = useState(false)
-  const [showHazardLog, setShowHazardLog] = useState(false)
   const [scrolled, setScrolled] = useState(false)
 
   // 타이머 — App 레벨에서 관리해서 탭 전환해도 유지
@@ -206,13 +205,20 @@ export default function App() {
     return () => supabase.removeChannel(channel)
   }, [user?.id, user?.labId])
 
-  // 랩 관리자가 이 탭을 꺼버렸는데 마침 그 탭을 보고 있었다면 홈으로 돌려보냄
+  // 랩 관리자가 이 탭(또는 모듈)을 꺼버렸는데 마침 그 화면을 보고 있었다면 홈으로 돌려보냄
   useEffect(() => {
-    if (labInfo?.disabledTabs?.includes(activeTab)) setActiveTab('home')
+    const isDisabledCore = labInfo?.disabledTabs?.includes(activeTab)
+    const moduleMatch = MODULES.find(m => m.key === activeTab)
+    const isDisabledModule = moduleMatch && !isModuleEnabled(labInfo, moduleMatch.key)
+    if (isDisabledCore || isDisabledModule) setActiveTab('home')
   }, [labInfo, activeTab])
 
   const labId = user?.labId
-  const visibleTabs = TABS.filter(t => t.id === 'home' || !labInfo?.disabledTabs?.includes(t.id))
+  const enabledModuleTabs = MODULES.filter(m => isModuleEnabled(labInfo, m.key))
+  const visibleTabs = [
+    ...TABS.filter(t => t.id === 'home' || !labInfo?.disabledTabs?.includes(t.id)),
+    ...enabledModuleTabs.map(m => ({ id: m.key, icon: m.icon, label: m.label })),
+  ]
   const schedulesHook = useCollection(labId, 'schedules', 'date')
   const equipmentHook = useCollection(labId, 'equipment', 'created_at')
   const suppliesHook  = useCollection(labId, 'supplies', 'created_at')
@@ -281,6 +287,9 @@ export default function App() {
         {activeTab === 'supplies' && !labInfo?.disabledTabs?.includes('supplies') && (
           <SuppliesTab labId={labId} supplies={suppliesHook.data} suppliesHook={suppliesHook} user={user} />
         )}
+        {enabledModuleTabs.map(m => activeTab === m.key && (
+          <m.Screen key={m.key} labId={labId} user={user} />
+        ))}
       </div>
 
       {/* 탭바 — 타이머 실행중이면 배지 표시 */}
@@ -289,7 +298,7 @@ export default function App() {
           <button key={t.id} className={`tab-item${activeTab === t.id ? ' active' : ''}`}
             onClick={() => { if (activeTab !== t.id) { haptic.selection(); setActiveTab(t.id) } }}
             style={{ position: 'relative' }}>
-            <span className="tab-icon">{t.icon}</span>
+            <span className="tab-icon"><t.icon size={21} strokeWidth={activeTab === t.id ? 2 : 1.7} /></span>
             <span className="tab-label">{t.label}</span>
             {/* 타이머 실행 중 배지 */}
             {t.id === 'timer' && runningCount > 0 && (
@@ -309,14 +318,7 @@ export default function App() {
         <Sidebar user={user} labInfo={labInfo} members={members}
           onClose={() => setShowSidebar(false)}
           onUserUpdate={updated => setUser(updated)}
-          onLabUpdate={updated => setLabInfo(updated)}
-          onOpenModule={key => {
-            setShowSidebar(false)
-            if (key === 'wet_lab_hazard_log') setShowHazardLog(true)
-          }} />
-      )}
-      {showHazardLog && (
-        <HazardLogScreen labId={labId} user={user} onClose={() => setShowHazardLog(false)} />
+          onLabUpdate={updated => setLabInfo(updated)} />
       )}
       <ToastContainer />
     </div>

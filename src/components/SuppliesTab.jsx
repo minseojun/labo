@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { statusLabel, statusBg, statusColor } from '../utils'
 import { toast } from '../utils/toast'
+import { Icon } from './Icon'
 
 function SkeletonRow() {
   return (
@@ -96,7 +97,7 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
 
       {!canEdit && (
         <div style={{ margin: '0 16px 12px', padding: '10px 14px', background: 'var(--yellow-light)', borderRadius: 8, fontSize: 12, color: '#b97b10' }}>
-          👀 조회만 가능합니다. 상태 변경은 대학원생 이상만 가능해요.
+          조회만 가능합니다. 상태 변경은 대학원생 이상만 가능해요.
         </div>
       )}
 
@@ -106,7 +107,7 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
         </div>
       ) : supplies.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text2)' }}>
-          <div style={{ fontSize: 36, marginBottom: 12 }}>📦</div>
+          <Icon.Package size={30} strokeWidth={1.4} style={{ marginBottom: 12, opacity: .5 }} />
           <div style={{ fontWeight: 500 }}>등록된 소모품이 없습니다</div>
         </div>
       ) : (
@@ -139,8 +140,8 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
           <div className="sheet">
             <div className="sheet-handle" />
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-              <div style={{ width: 44, height: 44, borderRadius: 10, background: statusBg(sel.status), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>
-                {sel.status === 'green' ? '🟢' : sel.status === 'yellow' ? '🟡' : '🔴'}
+              <div style={{ width: 44, height: 44, borderRadius: 10, background: statusBg(sel.status), display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ width: 14, height: 14, borderRadius: '50%', background: statusColor(sel.status) }} />
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 700, fontSize: 17 }}>{sel.name}</div>
@@ -149,7 +150,7 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
             </div>
             {canEdit && (
               <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-                {[['green', '🟢 정상'], ['yellow', '🟡 곧 부족'], ['red', '🔴 재고 없음']].map(([v, l]) => (
+                {[['green', '정상'], ['yellow', '곧 부족'], ['red', '재고 없음']].map(([v, l]) => (
                   <button key={v} onClick={() => changeStatus(sel.id, v, sel.status)}
                     style={{ flex: 1, padding: '10px 6px', border: `2px solid ${sel.status === v ? statusColor(v) : 'var(--border)'}`, borderRadius: 8, background: sel.status === v ? statusBg(v) : 'var(--card)', fontSize: 11, fontWeight: 600, cursor: 'pointer', color: sel.status === v ? statusColor(v) : 'var(--text2)' }}>
                     {l}
@@ -201,7 +202,7 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
             <div className="form-group">
               <label className="form-label">초기 상태</label>
               <div style={{ display: 'flex', gap: 8 }}>
-                {[['green', '🟢 정상'], ['yellow', '🟡 곧 부족'], ['red', '🔴 재고 없음']].map(([v, l]) => (
+                {[['green', '정상'], ['yellow', '곧 부족'], ['red', '재고 없음']].map(([v, l]) => (
                   <button key={v} onClick={() => setForm(p => ({ ...p, status: v }))}
                     style={{ flex: 1, padding: '9px 4px', border: `1.5px solid ${form.status === v ? statusColor(v) : 'var(--border)'}`, borderRadius: 8, background: form.status === v ? statusBg(v) : 'var(--card)', fontSize: 11, fontWeight: 600, cursor: 'pointer', color: form.status === v ? statusColor(v) : 'var(--text2)' }}>
                     {l}

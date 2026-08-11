@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { formatTime } from '../utils'
+import { Icon } from './Icon'
 
 const presets = [[5 * 60, '5분'], [15 * 60, '15분'], [30 * 60, '30분'], [60 * 60, '1시간']]
 
@@ -38,7 +39,7 @@ function TimerCard({ timer, onUpdate, onDelete }) {
         </div>
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 3 }}>{timer.name}</div>
-          {timer.equipment && <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 6 }}>🔬 {timer.equipment}</div>}
+          {timer.equipment && <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 6 }}>{timer.equipment}</div>}
           <div style={{ fontSize: 11, color: 'var(--text2)' }}>설정: {formatTime(total)}</div>
         </div>
       </div>
@@ -65,7 +66,7 @@ function TimerCard({ timer, onUpdate, onDelete }) {
           marginTop: 10, width: '100%', padding: '8px',
           background: 'var(--green-light)', color: 'var(--green)',
           border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer'
-        }}>✅ 완료 — 메모 남기기</button>
+        }}>완료 — 메모 남기기</button>
       )}
       {showMemo && (
         <div style={{ marginTop: 12, padding: 12, background: 'var(--green-light)', borderRadius: 8 }}>
@@ -110,7 +111,7 @@ export default function TimerTab({ timers, onUpdate, onDelete, onAdd, equipment 
             <div className="page-title">실험 타이머</div>
             <div className="page-subtitle">
               {runningCount > 0
-                ? <span style={{ color: 'var(--green)', fontWeight: 600 }}>⏱ {runningCount}개 실행 중</span>
+                ? <span style={{ color: 'var(--green)', fontWeight: 600 }}>{runningCount}개 실행 중</span>
                 : `${timers.length}개 등록됨`}
             </div>
           </div>
@@ -123,7 +124,7 @@ export default function TimerTab({ timers, onUpdate, onDelete, onAdd, equipment 
 
       {timers.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text2)' }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>⏱</div>
+          <Icon.Timer size={34} strokeWidth={1.4} style={{ marginBottom: 12, opacity: .5 }} />
           <div style={{ fontWeight: 500 }}>타이머가 없습니다</div>
           <div style={{ fontSize: 12, marginTop: 4 }}>+ 추가 버튼을 눌러 실험 타이머를 시작하세요</div>
         </div>
