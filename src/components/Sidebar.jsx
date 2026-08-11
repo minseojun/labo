@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { supabase } from '../supabase'
 import { memberColor, assignMemberColors } from '../utils'
 import { toast } from '../utils/toast'
-import { MODULES, isModuleEnabled } from '../modules'
+import { MODULES, CORE_TABS, isModuleEnabled } from '../modules'
 
 const AVATARS = ['🧑‍🔬','👩‍🔬','👨‍🔬','🧑‍💻','👩‍💻','👨‍💻','🧑‍🎓','👩‍🎓','👨‍🎓','🦊','🐧','🐻','🌱','⚗️','🔬','🧪','💡','🚀']
 const ROLES = ['학부인턴','학부연구생','대학원생','교수']
@@ -103,6 +103,20 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate,
     }
   }
 
+  // disabledTabs는 블랙리스트(기본 전부 켜짐) — 탭 켜기=배열에서 빼기, 끄기=배열에 넣기
+  const handleToggleTab = async (id, enabled) => {
+    const current = labInfo?.disabledTabs || []
+    const next = enabled ? current.filter(k => k !== id) : [...new Set([...current, id])]
+    try {
+      await supabase.from('labs').update({ disabled_tabs: next }).eq('id', user.labId)
+      onLabUpdate({ ...labInfo, disabledTabs: next })
+      toast.success(enabled ? '탭을 켰어요' : '탭을 껐어요')
+    } catch (e) {
+      console.error(e)
+      toast.error('탭 설정 변경에 실패했어요.')
+    }
+  }
+
   const handleKick = async (memberId) => {
     if (!window.confirm('이 구성원을 연구실에서 내보내시겠습니까?')) return
     try {
@@ -186,11 +200,30 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate,
             ))}
           </div>
 
-          {/* 모듈 관리 (교수 전용) — 랩 성격에 맞게 기능을 켜고 끔 */}
+          {/* 기본 탭 관리 (교수 전용) — 안 쓰는 탭은 꺼서 화면을 단순하게 */}
           {isAdmin && (
             <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: .6, marginBottom: 3 }}>모듈 관리</div>
-              <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 12 }}>연구실 성격에 맞는 기능만 켜두세요</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: .6, marginBottom: 3 }}>기본 탭</div>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 12 }}>안 쓰는 탭은 꺼서 홈 화면을 단순하게 만들 수 있어요. 홈은 항상 켜져 있어요.</div>
+              {CORE_TABS.map(t => (
+                <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0' }}>
+                  <span style={{ fontSize: 17 }}>{t.icon}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>{t.label}</div>
+                    <div style={{ fontSize: 10.5, color: 'var(--text2)', marginTop: 1 }}>{t.description}</div>
+                  </div>
+                  <ToggleSwitch on={!labInfo?.disabledTabs?.includes(t.id)}
+                    onClick={() => handleToggleTab(t.id, !!labInfo?.disabledTabs?.includes(t.id))} />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* 추가 모듈 (교수 전용) — 도메인별로 선택하는 확장 기능 */}
+          {isAdmin && (
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: .6, marginBottom: 3 }}>추가 모듈</div>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 12 }}>연구실 성격에 맞는 기능을 골라서 켜세요</div>
               {MODULES.map(m => (
                 <div key={m.key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0' }}>
                   <span style={{ fontSize: 17 }}>{m.icon}</span>

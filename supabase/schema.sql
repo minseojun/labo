@@ -15,6 +15,7 @@ create table labs (
   code             text not null unique,
   prof_name        text not null,
   enabled_modules  text[] not null default '{}',
+  disabled_tabs    text[] not null default '{}',
   created_at       timestamptz not null default now()
 );
 

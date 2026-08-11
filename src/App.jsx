@@ -13,15 +13,10 @@ import HazardLogScreen from './components/HazardLogScreen'
 import { useCollection, useMembers } from './hooks/useSupabase'
 import ToastContainer from './components/ToastContainer'
 import { toast } from './utils/toast'
+import { CORE_TABS } from './modules'
 import './App.css'
 
-const TABS = [
-  { id: 'home',      icon: '🏠', label: '홈' },
-  { id: 'schedule',  icon: '📅', label: '일정' },
-  { id: 'equipment', icon: '🔬', label: '장비' },
-  { id: 'timer',     icon: '⏱', label: '타이머' },
-  { id: 'supplies',  icon: '📦', label: '소모품' },
-]
+const TABS = [{ id: 'home', icon: '🏠', label: '홈' }, ...CORE_TABS]
 
 function LoadingScreen() {
   return (
@@ -123,7 +118,10 @@ async function loadUserAndLab(authUser) {
   let labInfo = null
   if (user.labId) {
     const { data: lab } = await supabase.from('labs').select('*').eq('id', user.labId).single()
-    if (lab) labInfo = { id: lab.id, name: lab.name, code: lab.code, profName: lab.prof_name, enabledModules: lab.enabled_modules || [] }
+    if (lab) labInfo = {
+      id: lab.id, name: lab.name, code: lab.code, profName: lab.prof_name,
+      enabledModules: lab.enabled_modules || [], disabledTabs: lab.disabled_tabs || [],
+    }
   }
   return { user, labInfo }
 }
@@ -206,7 +204,13 @@ export default function App() {
     return () => supabase.removeChannel(channel)
   }, [user?.id, user?.labId])
 
+  // 랩 관리자가 이 탭을 꺼버렸는데 마침 그 탭을 보고 있었다면 홈으로 돌려보냄
+  useEffect(() => {
+    if (labInfo?.disabledTabs?.includes(activeTab)) setActiveTab('home')
+  }, [labInfo, activeTab])
+
   const labId = user?.labId
+  const visibleTabs = TABS.filter(t => t.id === 'home' || !labInfo?.disabledTabs?.includes(t.id))
   const schedulesHook = useCollection(labId, 'schedules', 'date')
   const equipmentHook = useCollection(labId, 'equipment', 'created_at')
   const suppliesHook  = useCollection(labId, 'supplies', 'created_at')
@@ -250,17 +254,18 @@ export default function App() {
       <div className="content-area">
         {activeTab === 'home' && (
           <HomeTab user={user} schedules={schedulesHook.data} schedulesHook={schedulesHook}
-            supplies={suppliesHook.data} notices={noticesHook.data} setActiveTab={setActiveTab} timers={timers} />
+            supplies={suppliesHook.data} notices={noticesHook.data} setActiveTab={setActiveTab} timers={timers}
+            disabledTabs={labInfo?.disabledTabs || []} />
         )}
-        {activeTab === 'schedule' && (
+        {activeTab === 'schedule' && !labInfo?.disabledTabs?.includes('schedule') && (
           <ScheduleTab labId={labId} schedules={schedulesHook.data} schedulesHook={schedulesHook}
             notices={noticesHook.data} noticesHook={noticesHook} members={members} user={user} />
         )}
-        {activeTab === 'equipment' && (
+        {activeTab === 'equipment' && !labInfo?.disabledTabs?.includes('equipment') && (
           <EquipmentTab labId={labId} equipment={equipmentHook.data} equipmentHook={equipmentHook} user={user} />
         )}
         {/* 타이머탭 — 항상 렌더링, display로 숨김 (언마운트 방지) */}
-        <div style={{ display: activeTab === 'timer' ? 'block' : 'none' }}>
+        <div style={{ display: activeTab === 'timer' && !labInfo?.disabledTabs?.includes('timer') ? 'block' : 'none' }}>
           <TimerTab
             timers={timers}
             onAdd={addTimer}
@@ -269,14 +274,14 @@ export default function App() {
             equipment={equipmentHook.data}
           />
         </div>
-        {activeTab === 'supplies' && (
+        {activeTab === 'supplies' && !labInfo?.disabledTabs?.includes('supplies') && (
           <SuppliesTab labId={labId} supplies={suppliesHook.data} suppliesHook={suppliesHook} user={user} />
         )}
       </div>
 
       {/* 탭바 — 타이머 실행중이면 배지 표시 */}
       <div className="tab-bar">
-        {TABS.map(t => (
+        {visibleTabs.map(t => (
           <button key={t.id} className={`tab-item${activeTab === t.id ? ' active' : ''}`}
             onClick={() => setActiveTab(t.id)}
             style={{ position: 'relative' }}>
