@@ -1,7 +1,5 @@
 import React, { useState } from 'react'
-import { signOut, updateProfile } from 'firebase/auth'
-import { doc, updateDoc, deleteDoc } from 'firebase/firestore'
-import { auth, db } from '../firebase'
+import { supabase } from '../supabase'
 import { memberColor, assignMemberColors } from '../utils'
 import { toast } from '../utils/toast'
 
@@ -30,7 +28,7 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate 
   const isAdmin = user.role === '교수'
 
   const handleLogout = async () => {
-    await signOut(auth)
+    await supabase.auth.signOut()
     window.location.reload()
   }
 
@@ -38,9 +36,8 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate 
     if (!newName.trim()) return
     setSaving(true)
     try {
-      await updateDoc(doc(db, 'users', user.id), { name: newName.trim(), avatar: selAvatar })
-      await updateDoc(doc(db, 'labs', user.labId, 'members', user.id), { name: newName.trim(), avatar: selAvatar })
-      if (auth.currentUser) await updateProfile(auth.currentUser, { displayName: newName.trim() })
+      await supabase.from('profiles').update({ name: newName.trim(), avatar: selAvatar }).eq('id', user.id)
+      await supabase.from('lab_members').update({ name: newName.trim(), avatar: selAvatar }).eq('lab_id', user.labId).eq('user_id', user.id)
       onUserUpdate({ ...user, name: newName.trim(), avatar: selAvatar })
       setEditing(false)
     } catch (e) { console.error(e) }
@@ -49,9 +46,9 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate 
 
   const handleRoleChange = async (memberId, newRole) => {
     try {
-      // users/{memberId} 문서는 본인만 쓸 수 있어서(보안 규칙) 여기서 직접 못 고침 —
-      // members 문서만 바꾸면 해당 유저 세션이 실시간 감시로 스스로 동기화함
-      await updateDoc(doc(db, 'labs', user.labId, 'members', memberId), { role: newRole })
+      // profiles 행은 본인만 쓸 수 있어서(RLS) 여기서 직접 못 고침 —
+      // lab_members 행만 바꾸면 해당 유저 세션이 실시간 감시로 스스로 동기화함
+      await supabase.from('lab_members').update({ role: newRole }).eq('lab_id', user.labId).eq('user_id', memberId)
       setManagingMember(p => p ? { ...p, role: newRole } : p)
       toast.success('역할을 변경했어요')
     } catch (e) {
@@ -63,7 +60,7 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate 
   const handleKick = async (memberId) => {
     if (!window.confirm('이 구성원을 연구실에서 내보내시겠습니까?')) return
     try {
-      await deleteDoc(doc(db, 'labs', user.labId, 'members', memberId))
+      await supabase.from('lab_members').delete().eq('lab_id', user.labId).eq('user_id', memberId)
       setManagingMember(null)
     } catch (e) {
       console.error(e)

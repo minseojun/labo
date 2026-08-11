@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { onAuthStateChanged } from 'firebase/auth'
-import { doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore'
-import { auth, db } from './firebase'
+import { supabase } from './supabase'
 import AuthScreen from './components/AuthScreen'
 import HomeTab from './components/HomeTab'
 import ScheduleTab from './components/ScheduleTab'
@@ -9,7 +7,7 @@ import EquipmentTab from './components/EquipmentTab'
 import TimerTab from './components/TimerTab'
 import SuppliesTab from './components/SuppliesTab'
 import Sidebar from './components/Sidebar'
-import { useCollection, useMembers } from './hooks/useFirestore'
+import { useCollection, useMembers } from './hooks/useSupabase'
 import ToastContainer from './components/ToastContainer'
 import { toast } from './utils/toast'
 import './App.css'
@@ -115,6 +113,18 @@ function useTimers() {
   return { timers, addTimer, updateTimer, deleteTimer }
 }
 
+async function loadUserAndLab(authUser) {
+  const { data: profile, error } = await supabase.from('profiles').select('*').eq('id', authUser.id).single()
+  if (error || !profile) return { user: null, labInfo: null }
+  const user = { id: authUser.id, name: profile.name, email: profile.email, role: profile.role, labId: profile.lab_id, avatar: profile.avatar }
+  let labInfo = null
+  if (user.labId) {
+    const { data: lab } = await supabase.from('labs').select('*').eq('id', user.labId).single()
+    if (lab) labInfo = { id: lab.id, name: lab.name, code: lab.code, profName: lab.prof_name }
+  }
+  return { user, labInfo }
+}
+
 export default function App() {
   const [user, setUser] = useState(null)
   const [labInfo, setLabInfo] = useState(null)
@@ -126,75 +136,66 @@ export default function App() {
   const { timers, addTimer, updateTimer, deleteTimer } = useTimers()
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
-      try {
-        if (firebaseUser) {
-          const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid))
-          if (userDoc.exists()) {
-            const userData = { id: firebaseUser.uid, ...userDoc.data() }
-            setUser(userData)
-            if (userData.labId) {
-              try {
-                const labDoc = await getDoc(doc(db, 'labs', userData.labId))
-                if (labDoc.exists()) setLabInfo({ id: labDoc.id, ...labDoc.data() })
-              } catch (labErr) {
-                console.error('연구실 정보 로드 실패:', labErr)
-              }
-            }
-          } else {
-            setUser(null)
-          }
-        } else {
-          setUser(null)
-        }
-      } catch (e) {
-        console.error('인증 상태 처리 오류:', e)
-        setUser(null)
-      } finally {
-        setAuthLoading(false)
+    let active = true
+
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session) { if (active) setAuthLoading(false); return }
+      const { user: u, labInfo: l } = await loadUserAndLab(session.user)
+      if (active) { setUser(u); setLabInfo(l); setAuthLoading(false) }
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_OUT' || !session) {
+        if (active) { setUser(null); setLabInfo(null) }
+        return
+      }
+      if (event === 'SIGNED_IN') {
+        const { user: u, labInfo: l } = await loadUserAndLab(session.user)
+        if (active) { setUser(u); setLabInfo(l) }
       }
     })
-    return unsub
+
+    return () => { active = false; subscription.unsubscribe() }
   }, [])
 
-  // onAuthStateChanged가 signup 중 타이밍 이슈로 labInfo를 못 채운 경우 보완
-  useEffect(() => {
-    if (user?.labId && !labInfo) {
-      getDoc(doc(db, 'labs', user.labId)).then(labDoc => {
-        if (labDoc.exists()) setLabInfo({ id: labDoc.id, ...labDoc.data() })
-      }).catch(e => console.error('연구실 정보 로드 실패:', e))
-    }
-  }, [user?.labId])
-
   // 본인의 랩 멤버십을 실시간 감시 — 강퇴되면 labId를 정리하고,
-  // 교수가 역할을 바꾸면(다른 유저의 users 문서는 직접 못 고치므로) 스스로 동기화
+  // 교수가 역할을 바꾸면 스스로 동기화
   useEffect(() => {
     if (!user?.id || !user?.labId) return
     const uid = user.id
     const labId = user.labId
-    const unsub = onSnapshot(doc(db, 'labs', labId, 'members', uid), snap => {
-      if (!snap.exists()) {
-        updateDoc(doc(db, 'users', uid), { labId: null }).catch(e => console.error('labId 정리 실패:', e))
-        toast.error('연구실에서 제외되었어요. 초대코드로 다시 참여해주세요.')
-        setUser(p => (p && p.id === uid) ? { ...p, labId: null } : p)
-        setLabInfo(null)
-        return
-      }
-      const role = snap.data().role
-      setUser(p => {
-        if (!p || p.id !== uid || !role || p.role === role) return p
-        updateDoc(doc(db, 'users', uid), { role }).catch(e => console.error('역할 동기화 실패:', e))
-        return { ...p, role }
+
+    const channel = supabase
+      .channel(`self-membership-${uid}`)
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'lab_members',
+        filter: `user_id=eq.${uid}`,
+      }, async (payload) => {
+        if (payload.eventType === 'DELETE') {
+          await supabase.from('profiles').update({ lab_id: null }).eq('id', uid)
+          toast.error('연구실에서 제외되었어요. 초대코드로 다시 참여해주세요.')
+          setUser(p => (p && p.id === uid) ? { ...p, labId: null } : p)
+          setLabInfo(null)
+          return
+        }
+        const role = payload.new?.role
+        if (!role) return
+        setUser(p => {
+          if (!p || p.id !== uid || p.role === role) return p
+          supabase.from('profiles').update({ role }).eq('id', uid).then(() => {})
+          return { ...p, role }
+        })
       })
-    }, err => console.error('멤버십 감시 실패:', err))
-    return unsub
+      .subscribe()
+
+    return () => supabase.removeChannel(channel)
   }, [user?.id, user?.labId])
 
   const labId = user?.labId
   const schedulesHook = useCollection(labId, 'schedules', 'date')
-  const equipmentHook = useCollection(labId, 'equipment', 'createdAt')
-  const suppliesHook  = useCollection(labId, 'supplies', 'createdAt')
-  const noticesHook   = useCollection(labId, 'notices', 'createdAt')
+  const equipmentHook = useCollection(labId, 'equipment', 'created_at')
+  const suppliesHook  = useCollection(labId, 'supplies', 'created_at')
+  const noticesHook   = useCollection(labId, 'notices', 'created_at')
   const members       = useMembers(labId)
 
   if (authLoading) return <LoadingScreen />

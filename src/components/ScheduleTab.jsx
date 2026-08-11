@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { useMembers } from '../hooks/useFirestore'
+import { useMembers } from '../hooks/useSupabase'
 import CalendarSection from './schedule/CalendarSection'
 import TaskSection from './schedule/TaskSection'
 

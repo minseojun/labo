@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react'
-import { updateDoc, doc, arrayUnion, addDoc, collection, onSnapshot, serverTimestamp, query, orderBy } from 'firebase/firestore'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import QRCode from 'qrcode'
 import jsQR from 'jsqr'
-import { db } from '../firebase'
+import { supabase } from '../supabase'
+import { toCamelRow } from '../hooks/useSupabase'
 import { toast } from '../utils/toast'
 
 const QR_PREFIX = 'LABO-EQUIP:'
@@ -116,17 +116,25 @@ function QRScanner({ onDetect }) {
 
 function useComments(labId, equipmentId) {
   const [comments, setComments] = useState([])
+
+  const fetchComments = useCallback(async () => {
+    if (!labId || !equipmentId) return
+    const { data, error } = await supabase
+      .from('equipment_comments').select('*').eq('equipment_id', equipmentId).order('created_at', { ascending: true })
+    if (error) { console.error(error); return }
+    setComments(data.map(toCamelRow))
+  }, [labId, equipmentId])
+
   useEffect(() => {
     if (!labId || !equipmentId) return
-    const q = query(
-      collection(db, 'labs', labId, 'equipment', equipmentId, 'comments'),
-      orderBy('createdAt', 'asc')
-    )
-    const unsub = onSnapshot(q, snap => {
-      setComments(snap.docs.map(d => ({ id: d.id, ...d.data() })))
-    }, err => console.error(err))
-    return unsub
-  }, [labId, equipmentId])
+    fetchComments()
+    const channel = supabase
+      .channel(`equipment_comments-${equipmentId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'equipment_comments', filter: `equipment_id=eq.${equipmentId}` }, fetchComments)
+      .subscribe()
+    return () => supabase.removeChannel(channel)
+  }, [labId, equipmentId, fetchComments])
+
   return comments
 }
 
@@ -138,12 +146,11 @@ function CommentSection({ labId, equipmentId, user }) {
     const trimmed = text.trim()
     if (!trimmed || trimmed.length > 500) return
     try {
-      await addDoc(collection(db, 'labs', labId, 'equipment', equipmentId, 'comments'), {
-        author: user.name,
-        role: user.role,
-        text: trimmed,
-        createdAt: serverTimestamp()
+      const { error } = await supabase.from('equipment_comments').insert({
+        equipment_id: equipmentId, lab_id: labId,
+        author: user.name, role: user.role, text: trimmed,
       })
+      if (error) throw error
       setText('')
     } catch (e) {
       console.error(e)
@@ -174,7 +181,7 @@ function CommentSection({ labId, equipmentId, user }) {
             <span style={{ fontSize: 12, fontWeight: 600 }}>{c.author}</span>
             <span style={{ fontSize: 10, color: 'var(--text2)' }}>{c.role}</span>
             <span style={{ fontSize: 10, color: 'var(--text2)', marginLeft: 'auto' }}>
-              {c.createdAt?.toDate?.()?.toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) || ''}
+              {c.createdAt ? new Date(c.createdAt).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
             </span>
           </div>
           <div style={{ background: 'var(--bg)', borderRadius: '0 10px 10px 10px', padding: '8px 12px', fontSize: 13, marginLeft: 30 }}>
@@ -219,10 +226,10 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
       memo: isUsing ? memo : ''
     }
     try {
-      await updateDoc(doc(db, 'labs', labId, 'equipment', eq.id), {
+      await equipmentHook.update(eq.id, {
         status: isUsing ? 'available' : 'in-use',
         lastUser: user.name,
-        logs: arrayUnion(newLog)
+        logs: [...(eq.logs || []), newLog],
       })
       setSel(p => p ? { ...p, status: isUsing ? 'available' : 'in-use', lastUser: user.name, logs: [...(p.logs || []), newLog] } : p)
       if (isUsing) setMemo('')
@@ -260,7 +267,7 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
 
   const setMaintenance = async (eq, status) => {
     try {
-      await updateDoc(doc(db, 'labs', labId, 'equipment', eq.id), { status })
+      await equipmentHook.update(eq.id, { status })
       setSel(p => p ? { ...p, status } : p)
     } catch (e) {
       console.error(e)

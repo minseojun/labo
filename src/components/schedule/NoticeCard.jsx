@@ -1,6 +1,4 @@
 import React from 'react'
-import { updateDoc, doc } from 'firebase/firestore'
-import { db } from '../../firebase'
 import { toast } from '../../utils/toast'
 import NoticeComments from './NoticeComments'
 
@@ -9,7 +7,7 @@ export default function NoticeCard({ n, labId, user, noticesHook, hidden }) {
 
   const handleTogglePin = async () => {
     try {
-      await updateDoc(doc(db, 'labs', labId, 'notices', n.id), { pinned: !n.pinned })
+      await noticesHook.update(n.id, { pinned: !n.pinned })
     } catch (e) {
       console.error(e)
       toast.error('수정에 실패했어요.')
@@ -18,7 +16,7 @@ export default function NoticeCard({ n, labId, user, noticesHook, hidden }) {
 
   const handleToggleHidden = async () => {
     try {
-      await updateDoc(doc(db, 'labs', labId, 'notices', n.id), { hidden: !hidden, pinned: false })
+      await noticesHook.update(n.id, { hidden: !hidden, pinned: false })
     } catch (e) {
       console.error(e)
       toast.error('수정에 실패했어요.')

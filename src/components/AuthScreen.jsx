@@ -1,11 +1,5 @@
 import React, { useState } from 'react'
-import {
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  updateProfile
-} from 'firebase/auth'
-import { doc, setDoc, getDoc, updateDoc, collection, query, where, getDocs, serverTimestamp } from 'firebase/firestore'
-import { auth, db } from '../firebase'
+import { supabase } from '../supabase'
 import { redistributeTasks } from '../utils'
 
 function generateLabCode() {
@@ -36,16 +30,17 @@ export default function AuthScreen({ onLogin }) {
   const handleLogin = async () => {
     setError(''); setLoading(true)
     try {
-      const cred = await signInWithEmailAndPassword(auth, email, pw)
-      const userDoc = await getDoc(doc(db, 'users', cred.user.uid))
-      if (!userDoc.exists()) { setError('사용자 정보가 없습니다.'); setLoading(false); return }
-      onLogin({ id: cred.user.uid, ...userDoc.data() })
-    } catch (e) {
-      if (e.code === 'auth/wrong-password' || e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential') {
+      const { data, error: authErr } = await supabase.auth.signInWithPassword({ email, password: pw })
+      if (authErr) {
         setError('이메일 또는 비밀번호가 올바르지 않습니다.')
-      } else {
-        setError('로그인 오류: ' + e.message)
+        setLoading(false)
+        return
       }
+      const { data: profile, error: profErr } = await supabase.from('profiles').select('*').eq('id', data.user.id).single()
+      if (profErr || !profile) { setError('사용자 정보가 없습니다.'); setLoading(false); return }
+      onLogin({ id: data.user.id, name: profile.name, email: profile.email, role: profile.role, labId: profile.lab_id, avatar: profile.avatar })
+    } catch (e) {
+      setError('로그인 오류: ' + e.message)
     }
     setLoading(false)
   }
@@ -56,58 +51,69 @@ export default function AuthScreen({ onLogin }) {
 
     try {
       if (mode === 'join') {
-        const cred = await createUserWithEmailAndPassword(auth, email, pw)
-        await updateProfile(cred.user, { displayName: name })
-
-        const labsQ = query(collection(db, 'labs'), where('code', '==', code.toUpperCase()))
-        const labsSnap = await getDocs(labsQ)
-        if (labsSnap.empty) {
-          await cred.user.delete()
+        // 계정을 만들기 전에 초대코드부터 확인 — 잘못된 코드로 인해 빈 계정만 남는 걸 방지
+        const { data: labMatches, error: labErr } = await supabase.rpc('lookup_lab_by_code', { p_code: code.toUpperCase() })
+        if (labErr || !labMatches || labMatches.length === 0) {
           setError('존재하지 않는 초대코드입니다.'); setLoading(false); return
         }
-        const labDoc = labsSnap.docs[0]
+        const lab = labMatches[0]
 
-        const userData = { name, email, role, labId: labDoc.id, createdAt: serverTimestamp() }
-        await setDoc(doc(db, 'users', cred.user.uid), userData)
-        await setDoc(doc(db, 'labs', labDoc.id, 'members', cred.user.uid), {
-          name, role, joinedAt: serverTimestamp()
+        const { data: cred, error: signUpErr } = await supabase.auth.signUp({
+          email, password: pw, options: { data: { name } }
         })
+        if (signUpErr) throw signUpErr
+        if (!cred.session) {
+          setError('이메일 인증이 필요한 상태예요. Supabase Auth 설정에서 "Confirm email"을 꺼주세요.')
+          setLoading(false); return
+        }
+
+        const userData = { name, email, role, labId: lab.id }
+        await supabase.from('profiles').insert({ id: cred.user.id, name, email, role, lab_id: lab.id })
+        await supabase.from('lab_members').insert({ lab_id: lab.id, user_id: cred.user.id, name, role })
 
         // 새 멤버가 합류하면 기존 잡무 전체를 전원이 돌아가며 맡도록 재배정
         try {
-          const [tasksSnap, membersSnap] = await Promise.all([
-            getDocs(query(collection(db, 'labs', labDoc.id, 'schedules'), where('type', '==', 'task'))),
-            getDocs(collection(db, 'labs', labDoc.id, 'members')),
+          const [{ data: taskRows }, { data: memberRows }] = await Promise.all([
+            supabase.from('schedules').select('*').eq('lab_id', lab.id).eq('type', 'task'),
+            supabase.from('lab_members').select('*').eq('lab_id', lab.id),
           ])
-          const tasks = tasksSnap.docs.map(d => ({ id: d.id, ...d.data() }))
-          const allMembers = membersSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+          const tasks = (taskRows || []).map(t => ({ id: t.id, rotation: t.rotation }))
+          const allMembers = (memberRows || []).map(m => ({ id: m.user_id, name: m.name }))
           const reassignments = redistributeTasks(tasks, allMembers)
           await Promise.all(reassignments.map(r =>
-            updateDoc(doc(db, 'labs', labDoc.id, 'schedules', r.id), { assignee: r.rotation[0], rotation: r.rotation })
+            supabase.from('schedules').update({ assignee: r.rotation[0], rotation: r.rotation }).eq('id', r.id)
           ))
         } catch (redistErr) {
           console.error('잡무 재배정 실패:', redistErr)
         }
 
-        onLogin({ id: cred.user.uid, ...userData, labId: labDoc.id })
+        onLogin({ id: cred.user.id, ...userData })
 
       } else {
         if (!labName.trim()) { setError('연구실 이름을 입력해주세요.'); setLoading(false); return }
         const newCode = generateLabCode()
-        const cred = await createUserWithEmailAndPassword(auth, email, pw)
-        await updateProfile(cred.user, { displayName: name })
+        const { data: cred, error: signUpErr } = await supabase.auth.signUp({
+          email, password: pw, options: { data: { name } }
+        })
+        if (signUpErr) throw signUpErr
+        if (!cred.session) {
+          setError('이메일 인증이 필요한 상태예요. Supabase Auth 설정에서 "Confirm email"을 꺼주세요.')
+          setLoading(false); return
+        }
 
-        const labRef = doc(collection(db, 'labs'))
-        await setDoc(labRef, { name: labName, code: newCode, profName: name, createdAt: serverTimestamp() })
-        const userData = { name, email, role: '교수', labId: labRef.id, createdAt: serverTimestamp() }
-        await setDoc(doc(db, 'users', cred.user.uid), userData)
-        await setDoc(doc(db, 'labs', labRef.id, 'members', cred.user.uid), { name, role: '교수', joinedAt: serverTimestamp() })
+        const { data: newLab, error: labInsertErr } = await supabase
+          .from('labs').insert({ name: labName, code: newCode, prof_name: name }).select().single()
+        if (labInsertErr) throw labInsertErr
+
+        const userData = { name, email, role: '교수', labId: newLab.id }
+        await supabase.from('profiles').insert({ id: cred.user.id, name, email, role: '교수', lab_id: newLab.id })
+        await supabase.from('lab_members').insert({ lab_id: newLab.id, user_id: cred.user.id, name, role: '교수' })
         alert(`연구실 생성 완료!\n초대코드: ${newCode}\n구성원들에게 공유하세요.`)
-        onLogin({ id: cred.user.uid, ...userData })
+        onLogin({ id: cred.user.id, ...userData })
       }
     } catch (e) {
-      if (e.code === 'auth/email-already-in-use') setError('이미 사용 중인 이메일입니다.')
-      else if (e.code === 'auth/weak-password') setError('비밀번호는 6자 이상이어야 합니다.')
+      if (e.message?.includes('already registered') || e.code === 'user_already_exists') setError('이미 사용 중인 이메일입니다.')
+      else if (e.message?.includes('Password') || e.code === 'weak_password') setError('비밀번호는 6자 이상이어야 합니다.')
       else setError('오류가 발생했습니다: ' + e.message)
     }
     setLoading(false)

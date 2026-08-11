@@ -9,13 +9,17 @@ npm run dev
 
 브라우저에서 http://localhost:3000 열기
 
-## Firebase 연동
+## Supabase 연동
 
-1. [Firebase Console](https://console.firebase.google.com) 에서 새 프로젝트 생성
-2. Authentication → 이메일/비밀번호 로그인 활성화
-3. Firestore Database → 테스트 모드로 생성
-4. 프로젝트 설정 → 웹 앱 추가 → config 복사
-5. `src/firebase.js` 에서 `firebaseConfig` 교체
+1. [Supabase](https://supabase.com) 에서 새 프로젝트 생성 (Northeast Asia (Seoul) 리전 추천)
+2. Authentication → Providers → Email → **Confirm email 끄기** (이메일 인증 없이 바로 로그인되는 구조라 꼭 꺼야 해요)
+3. SQL Editor 에 `supabase/schema.sql` 전체 내용을 붙여넣고 실행 (테이블 + RLS 정책 + realtime 설정이 한 번에 생성됨)
+4. Project Settings → API 에서 **Project URL**, **anon public key** 복사
+5. 루트에 `.env.local` 파일을 만들고 아래처럼 채우기 (`.env.example` 참고)
+   ```
+   VITE_SUPABASE_URL=https://xxxxxxxxxxxx.supabase.co
+   VITE_SUPABASE_ANON_KEY=your-anon-public-key
+   ```
 
 ## Vercel 배포
 
@@ -35,7 +39,7 @@ src/
     EquipmentTab.jsx  # 장비 관리 + QR
     TimerTab.jsx      # 멀티 타이머
     SuppliesTab.jsx   # 소모품 신호등
-  firebase.js         # Firebase 설정 (config 교체 필요)
+  supabase.js         # Supabase 클라이언트 (.env.local 필요)
   mockData.js         # 데모 데이터
   utils.js            # 공통 유틸
   App.jsx             # 라우팅
