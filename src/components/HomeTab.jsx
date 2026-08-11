@@ -8,7 +8,7 @@ const typeStyle = {
   task: { bar: 'var(--yellow)', chip: 'chip-yellow', label: '잡무' },
 }
 
-export default function HomeTab({ user, schedules, schedulesHook, supplies, notices, setActiveTab, timers = [] }) {
+export default function HomeTab({ user, schedules, schedulesHook, supplies, notices, setActiveTab, timers = [], disabledTabs = [] }) {
   const today = new Date()
   const todayStr = fmtDate(today)
 
@@ -160,7 +160,7 @@ export default function HomeTab({ user, schedules, schedulesHook, supplies, noti
       </div>
 
       {/* 재고 알림 */}
-      {redSupplies.length > 0 && (
+      {redSupplies.length > 0 && !disabledTabs.includes('supplies') && (
         <div onClick={() => setActiveTab('supplies')} style={{
           margin: '12px 16px 0', padding: '11px 14px',
           background: 'var(--red-light)', border: '1px solid #f5c0c0',
@@ -181,7 +181,7 @@ export default function HomeTab({ user, schedules, schedulesHook, supplies, noti
           <span style={{ fontSize: 14, fontWeight: 800, letterSpacing: -.3 }}>오늘 할 일</span>
           {checkableItems.length > 0 ? (
             <span style={{ fontSize: 11, color: 'var(--text2)' }}>{doneCount}/{checkableItems.length} 완료</span>
-          ) : (
+          ) : !disabledTabs.includes('schedule') && (
             <button onClick={() => setActiveTab('schedule')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--green)', fontWeight: 600, padding: 0 }}>
               전체 보기 ›
             </button>
@@ -272,7 +272,7 @@ export default function HomeTab({ user, schedules, schedulesHook, supplies, noti
       </div>
 
       {/* 다음 잡무 — 디데이 가장 가까운 것 하나만 */}
-      {nextTask && (
+      {nextTask && !disabledTabs.includes('schedule') && (
         <div style={{ margin: '16px 16px 0' }}>
           <div style={{ fontSize: 14, fontWeight: 800, letterSpacing: -.3, marginBottom: 10 }}>다음 잡무</div>
           <div onClick={() => setActiveTab('schedule')} style={{
@@ -292,7 +292,7 @@ export default function HomeTab({ user, schedules, schedulesHook, supplies, noti
       )}
 
       {/* 실행 중 타이머 */}
-      {timers.filter(t => t.running || t.done).length > 0 && (
+      {timers.filter(t => t.running || t.done).length > 0 && !disabledTabs.includes('timer') && (
         <div style={{ margin: '16px 16px 0' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <span style={{ fontSize: 14, fontWeight: 800, letterSpacing: -.3 }}>실행 중 타이머</span>
@@ -325,7 +325,9 @@ export default function HomeTab({ user, schedules, schedulesHook, supplies, noti
         <div style={{ margin: '16px 16px 0' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <span style={{ fontSize: 14, fontWeight: 800, letterSpacing: -.3 }}>공지</span>
-            <button onClick={() => setActiveTab('schedule')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--green)', fontWeight: 600, padding: 0 }}>전체 보기 ›</button>
+            {!disabledTabs.includes('schedule') && (
+              <button onClick={() => setActiveTab('schedule')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--green)', fontWeight: 600, padding: 0 }}>전체 보기 ›</button>
+            )}
           </div>
           <div style={{ background: 'var(--card)', borderRadius: 16, boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
             {shownNotices.map((n, i) => (
