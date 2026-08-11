@@ -28,6 +28,7 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate,
   const [saving, setSaving] = useState(false)
   const [managingMember, setManagingMember] = useState(null)
   const [showInfo, setShowInfo] = useState(null)
+  const [modulesOpen, setModulesOpen] = useState(false)
   const [notifPermission, setNotifPermission] = useState(
     typeof Notification !== 'undefined' ? Notification.permission : 'unsupported'
   )
@@ -200,41 +201,41 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate,
             ))}
           </div>
 
-          {/* 기본 탭 관리 (교수 전용) — 안 쓰는 탭은 꺼서 화면을 단순하게 */}
+          {/* 모듈 관리 (교수 전용) — 기본 탭 + 추가 모듈을 한 목록에서 켜고 끔, 접이식 */}
           {isAdmin && (
             <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: .6, marginBottom: 3 }}>기본 탭</div>
-              <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 12 }}>안 쓰는 탭은 꺼서 홈 화면을 단순하게 만들 수 있어요. 홈은 항상 켜져 있어요.</div>
-              {CORE_TABS.map(t => (
-                <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0' }}>
-                  <span style={{ fontSize: 17 }}>{t.icon}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600 }}>{t.label}</div>
-                    <div style={{ fontSize: 10.5, color: 'var(--text2)', marginTop: 1 }}>{t.description}</div>
-                  </div>
-                  <ToggleSwitch on={!labInfo?.disabledTabs?.includes(t.id)}
-                    onClick={() => handleToggleTab(t.id, !!labInfo?.disabledTabs?.includes(t.id))} />
+              <div onClick={() => setModulesOpen(p => !p)} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: .6 }}>모듈 관리</div>
+                  <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>필요한 기능만 켜서 화면을 단순하게 만드세요. 홈은 항상 켜져 있어요.</div>
                 </div>
-              ))}
-            </div>
-          )}
-
-          {/* 추가 모듈 (교수 전용) — 도메인별로 선택하는 확장 기능 */}
-          {isAdmin && (
-            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: .6, marginBottom: 3 }}>추가 모듈</div>
-              <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 12 }}>연구실 성격에 맞는 기능을 골라서 켜세요</div>
-              {MODULES.map(m => (
-                <div key={m.key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0' }}>
-                  <span style={{ fontSize: 17 }}>{m.icon}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600 }}>{m.label}</div>
-                    <div style={{ fontSize: 10.5, color: 'var(--text2)', marginTop: 1 }}>{m.description}</div>
-                  </div>
-                  <ToggleSwitch on={isModuleEnabled(labInfo, m.key)}
-                    onClick={() => handleToggleModule(m.key, !isModuleEnabled(labInfo, m.key))} />
+                <span style={{ color: 'var(--text2)', fontSize: 11, transform: modulesOpen ? 'rotate(180deg)' : 'none', transition: 'transform .2s', flexShrink: 0 }}>▾</span>
+              </div>
+              {modulesOpen && (
+                <div style={{ marginTop: 12 }}>
+                  {[
+                    ...CORE_TABS.map(t => ({
+                      key: t.id, icon: t.icon, label: t.label, description: t.description,
+                      on: !labInfo?.disabledTabs?.includes(t.id),
+                      toggle: () => handleToggleTab(t.id, !!labInfo?.disabledTabs?.includes(t.id)),
+                    })),
+                    ...MODULES.map(m => ({
+                      key: m.key, icon: m.icon, label: m.label, description: m.description,
+                      on: isModuleEnabled(labInfo, m.key),
+                      toggle: () => handleToggleModule(m.key, !isModuleEnabled(labInfo, m.key)),
+                    })),
+                  ].map(item => (
+                    <div key={item.key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0' }}>
+                      <span style={{ fontSize: 17 }}>{item.icon}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600 }}>{item.label}</div>
+                        <div style={{ fontSize: 10.5, color: 'var(--text2)', marginTop: 1 }}>{item.description}</div>
+                      </div>
+                      <ToggleSwitch on={item.on} onClick={item.toggle} />
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
           )}
 
