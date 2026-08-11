@@ -3,6 +3,7 @@ import { StatusBar, Style } from '@capacitor/status-bar'
 import { Capacitor } from '@capacitor/core'
 import { supabase } from '../supabase'
 import { redistributeTasks } from '../utils'
+import { Icon } from './Icon'
 
 function generateLabCode() {
   const prefix = ['NANO', 'BIO', 'CHEM', 'PHYS', 'MAT'][Math.floor(Math.random() * 5)]
@@ -11,10 +12,10 @@ function generateLabCode() {
 }
 
 const ROLES = [
-  { value: '학부인턴',   emoji: '🎓', desc: '학부 인턴' },
-  { value: '학부연구생', emoji: '🔬', desc: '학부 연구생' },
-  { value: '대학원생',   emoji: '📚', desc: '석·박사 과정' },
-  { value: '교수',       emoji: '👨‍🏫', desc: '지도교수' },
+  { value: '학부인턴',   desc: '학부 인턴' },
+  { value: '학부연구생', desc: '학부 연구생' },
+  { value: '대학원생',   desc: '석·박사 과정' },
+  { value: '교수',       desc: '지도교수' },
 ]
 
 export default function AuthScreen({ onLogin }) {
@@ -159,7 +160,7 @@ export default function AuthScreen({ onLogin }) {
             fontSize: 13, color: '#c42e2e', marginBottom: 16,
             display: 'flex', alignItems: 'center', gap: 8
           }}>
-            <span style={{ flexShrink: 0 }}>⚠️</span>
+            <Icon.AlertTriangle size={16} strokeWidth={1.8} style={{ flexShrink: 0 }} />
             <span>{error}</span>
           </div>
         )}
@@ -186,8 +187,8 @@ export default function AuthScreen({ onLogin }) {
             {/* 참여 / 생성 토글 */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
               {[
-                { k: 'join', icon: '🔑', label: '코드로 입장' },
-                { k: 'create', icon: '🏗️', label: '연구실 생성' },
+                { k: 'join', icon: Icon.Key, label: '코드로 입장' },
+                { k: 'create', icon: Icon.Building, label: '연구실 생성' },
               ].map(m => (
                 <button key={m.k} onClick={() => setMode(m.k)} style={{
                   flex: 1, padding: '11px 8px',
@@ -199,7 +200,7 @@ export default function AuthScreen({ onLogin }) {
                   transition: 'all .2s', fontFamily: 'inherit',
                   display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4
                 }}>
-                  <span style={{ fontSize: 18 }}>{m.icon}</span>
+                  <m.icon size={18} strokeWidth={1.7} />
                   {m.label}
                 </button>
               ))}
@@ -225,16 +226,15 @@ export default function AuthScreen({ onLogin }) {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                     {ROLES.map(r => (
                       <button key={r.value} onClick={() => setRole(r.value)} style={{
-                        padding: '10px 8px',
+                        padding: '12px 8px',
                         border: `2px solid ${role === r.value ? 'var(--green)' : 'var(--border)'}`,
                         borderRadius: 12,
                         background: role === r.value ? 'var(--green-ultra)' : 'var(--card)',
                         cursor: 'pointer', textAlign: 'center', transition: 'all .15s',
                         fontFamily: 'inherit',
                       }}>
-                        <div style={{ fontSize: 20, marginBottom: 3 }}>{r.emoji}</div>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: role === r.value ? 'var(--green)' : 'var(--text)' }}>{r.value}</div>
-                        <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 1 }}>{r.desc}</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: role === r.value ? 'var(--green)' : 'var(--text)' }}>{r.value}</div>
+                        <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 2 }}>{r.desc}</div>
                       </button>
                     ))}
                   </div>

@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react'
 import { fmtDate, memberColor, assignMemberColors, taskRotation, computeSchedule, scheduleAssigneeOn, scheduleIsOverridden, scheduleMemberWorkload, redistributeTasks } from '../../utils'
 import { toast } from '../../utils/toast'
+import { Icon } from '../Icon'
 import TaskCalendar from './TaskCalendar'
 
 function repeatLabel(task) {
@@ -47,7 +48,7 @@ function WorkloadPanel({ rows, total, colorMap, onRedistribute }) {
         background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 10,
         fontSize: 12.5, fontWeight: 600, color: 'var(--text2)', cursor: 'pointer', fontFamily: 'inherit',
       }}>
-        🔄 전체 잡무 다시 고르게 배정하기
+        전체 잡무 다시 고르게 배정하기
       </button>
     </div>
   )
@@ -238,7 +239,7 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
 
         {tasksOnDate.length === 0 ? (
           <div className="tsk-empty">
-            <div className="tsk-empty-emoji">🧹</div>
+            <Icon.Sparkle size={26} strokeWidth={1.5} style={{ opacity: .5, marginBottom: 8 }} />
             <div className="tsk-empty-text">이 날은 배정된 잡무가 없어요</div>
           </div>
         ) : tasksOnDate.map(task => {
@@ -252,14 +253,14 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
                 <div className="tsk-name">{task.name}</div>
                 <div className="tsk-metarow">
                   <span className="tsk-strong" style={{ color }}>{task.todayAssignee}</span>
-                  {overridden && <span style={{ fontSize: 10, color: 'var(--green)', fontWeight: 700 }}>🔄 교체됨</span>}
+                  {overridden && <span style={{ fontSize: 10, color: 'var(--green)', fontWeight: 700 }}>교체됨</span>}
                   {!overridden && rotation.length > 1 && <span style={{ fontSize: 10, color: 'var(--text3)' }}>({rotation.length}명 순환)</span>}
                   <span className="tsk-sep" />
                   <span>{repeatLabel(task)}</span>
                 </div>
                 {task.note && <div className="tsk-note">{task.note}</div>}
               </div>
-              <button className="tsk-del" style={{ fontSize: 13 }} onClick={e => { e.stopPropagation(); openSwap(task) }} aria-label="담당자 바꾸기">🔄</button>
+              <button className="tsk-del" onClick={e => { e.stopPropagation(); openSwap(task) }} aria-label="담당자 바꾸기"><Icon.Refresh size={14} strokeWidth={1.8} /></button>
               <button className="tsk-del" onClick={e => { e.stopPropagation(); deleteTask(task) }} aria-label="삭제">✕</button>
             </div>
           )
@@ -326,7 +327,7 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
                 <button type="button" className="opt-pill"
                   style={{ borderRadius: 20, borderColor: 'var(--green)', background: 'var(--green-light)', color: 'var(--green)', fontWeight: 700 }}
                   onClick={() => setForm(p => ({ ...p, assignees: uniqueMembers.map(m => m.name) }))}>
-                  🔀 전체 인원
+                  전체 인원
                 </button>
                 {uniqueMembers.map(m => (
                   <button key={m.id} type="button" className="opt-pill"
@@ -387,7 +388,7 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
                 <button type="button" className="opt-pill"
                   style={{ borderRadius: 20, borderColor: 'var(--green)', background: 'var(--green-light)', color: 'var(--green)', fontWeight: 700 }}
                   onClick={() => setEditTask(p => ({ ...p, assignees: uniqueMembers.map(m => m.name) }))}>
-                  🔀 전체 인원
+                  전체 인원
                 </button>
                 {uniqueMembers.map(m => (
                   <button key={m.id} type="button" className="opt-pill"

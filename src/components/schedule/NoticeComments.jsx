@@ -55,7 +55,7 @@ export default function NoticeComments({ labId, noticeId, user }) {
   return (
     <div style={{ marginTop: 8 }}>
       <button onClick={() => setOpen(p => !p)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--text2)', padding: '2px 0', display: 'flex', alignItems: 'center', gap: 4 }}>
-        💬 댓글 {open ? '접기' : '보기'}
+        댓글 {open ? '접기' : '보기'}
       </button>
       {open && (
         <div style={{ marginTop: 10 }}>

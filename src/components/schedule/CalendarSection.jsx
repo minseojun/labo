@@ -155,7 +155,7 @@ export default function CalendarSection({ labId, schedules, schedulesHook, notic
         <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: .6 }}>공지사항</span>
         {hiddenNotices.length > 0 && (
           <button onClick={() => setShowHidden(p => !p)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--text2)', fontWeight: 600 }}>
-            {showHidden ? '👁 숨김 닫기' : '🗂 숨긴 공지'}
+            {showHidden ? '숨김 닫기' : '숨긴 공지'}
           </button>
         )}
       </div>
@@ -166,7 +166,7 @@ export default function CalendarSection({ labId, schedules, schedulesHook, notic
       {[...pinnedNotices, ...normalNotices].map(n => <NoticeCard key={n.id} n={n} labId={labId} user={user} noticesHook={noticesHook} hidden={false} />)}
       {showHidden && hiddenNotices.length > 0 && (
         <div style={{ margin: '4px 16px 0' }}>
-          <div style={{ fontSize: 11, color: 'var(--text2)', fontWeight: 600, marginBottom: 8, padding: '8px 0 4px', borderTop: '1px dashed var(--border)' }}>🗂 숨긴 공지</div>
+          <div style={{ fontSize: 11, color: 'var(--text2)', fontWeight: 600, marginBottom: 8, padding: '8px 0 4px', borderTop: '1px dashed var(--border)' }}>숨긴 공지</div>
           {hiddenNotices.map(n => <NoticeCard key={n.id} n={n} labId={labId} user={user} noticesHook={noticesHook} hidden={true} />)}
         </div>
       )}
@@ -207,7 +207,7 @@ export default function CalendarSection({ labId, schedules, schedulesHook, notic
             <div className="form-group">
               <label className="form-label">유형</label>
               <div style={{ display: 'flex', gap: 8 }}>
-                {[['lab','🏛 공용'], ['mine','👤 개인']].map(([v,l]) => (
+                {[['lab','공용'], ['mine','개인']].map(([v,l]) => (
                   <button key={v} onClick={() => setForm(p => ({ ...p, type: v }))} style={{ flex: 1, padding: '10px', border: `2px solid ${form.type === v ? 'var(--green)' : 'var(--border)'}`, borderRadius: 10, background: form.type === v ? 'var(--green-light)' : 'var(--card)', fontSize: 13, fontWeight: 600, cursor: 'pointer', color: form.type === v ? 'var(--green)' : 'var(--text2)' }}>{l}</button>
                 ))}
               </div>
@@ -247,7 +247,7 @@ export default function CalendarSection({ labId, schedules, schedulesHook, notic
             <div className="form-group">
               <label className="form-label">유형</label>
               <div style={{ display: 'flex', gap: 8 }}>
-                {[['lab','🏛 공용'], ['mine','👤 개인']].map(([v,l]) => (
+                {[['lab','공용'], ['mine','개인']].map(([v,l]) => (
                   <button key={v} onClick={() => setShowEdit(p => ({ ...p, type: v }))} style={{ flex: 1, padding: '10px', border: `2px solid ${showEdit.type === v ? 'var(--green)' : 'var(--border)'}`, borderRadius: 10, background: showEdit.type === v ? 'var(--green-light)' : 'var(--card)', fontSize: 13, fontWeight: 600, cursor: 'pointer', color: showEdit.type === v ? 'var(--green)' : 'var(--text2)' }}>{l}</button>
                 ))}
               </div>

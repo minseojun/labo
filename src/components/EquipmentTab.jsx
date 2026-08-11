@@ -4,6 +4,7 @@ import jsQR from 'jsqr'
 import { supabase } from '../supabase'
 import { toCamelRow } from '../hooks/useSupabase'
 import { toast } from '../utils/toast'
+import { Icon } from './Icon'
 
 const QR_PREFIX = 'LABO-EQUIP:'
 const qrPayload = code => `${QR_PREFIX}${code}`
@@ -295,12 +296,12 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={() => setScanning(true)}
               style={{ padding: '8px 12px', background: 'var(--card)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-              📷 QR
+              QR 스캔
             </button>
             {isAdmin && equipment.length > 0 && (
               <button onClick={() => setShowBulkQR(true)}
                 style={{ padding: '8px 12px', background: 'var(--card)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                🖨️ QR 전체
+                QR 전체
               </button>
             )}
             {isAdmin && (
@@ -325,7 +326,7 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
         </div>
       ) : filtered.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text2)' }}>
-          <div style={{ fontSize: 36, marginBottom: 12 }}>🔬</div>
+          <Icon.Flask size={30} strokeWidth={1.4} style={{ marginBottom: 12, opacity: .5 }} />
           <div style={{ fontWeight: 500 }}>등록된 장비가 없습니다</div>
           {isAdmin && <div style={{ fontSize: 12, marginTop: 4 }}>+ 추가 버튼으로 장비를 등록하세요</div>}
         </div>
@@ -382,12 +383,12 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
                 {sel.status === 'maintenance' ? (
                   <button className="timer-btn btn-play" style={{ flex: 1 }}
                     onClick={() => setMaintenance(sel, 'available')}>
-                    ✅ 점검 완료 처리
+                    점검 완료 처리
                   </button>
                 ) : (
                   <button className="timer-btn" style={{ flex: 1, background: 'var(--yellow-light)', color: '#b97b10' }}
                     onClick={() => setMaintenance(sel, 'maintenance')}>
-                    🔧 점검 중으로 변경
+                    점검 중으로 변경
                   </button>
                 )}
               </div>
@@ -457,7 +458,7 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
                 <div style={{ fontSize: 12, color: 'var(--text2)' }}>{sel.code}</div>
               </div>
             </div>
-            <button className="btn-primary" onClick={() => window.print()}>🖨️ 인쇄</button>
+            <button className="btn-primary" onClick={() => window.print()}>인쇄</button>
           </div>
         </div>
       )}
@@ -479,7 +480,7 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
                 ))}
               </div>
             </div>
-            <button className="btn-primary" style={{ marginTop: 16 }} onClick={() => window.print()}>🖨️ 전체 인쇄</button>
+            <button className="btn-primary" style={{ marginTop: 16 }} onClick={() => window.print()}>전체 인쇄</button>
           </div>
         </div>
       )}

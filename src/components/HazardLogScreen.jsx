@@ -2,13 +2,14 @@ import React, { useState } from 'react'
 import { useCollection } from '../hooks/useSupabase'
 import { fmtDate } from '../utils'
 import { toast } from '../utils/toast'
+import { Icon } from './Icon'
 
 const CATEGORIES = [
-  ['spill', '💧 유출'],
-  ['exposure', '☣️ 노출'],
-  ['burn', '🔥 화상'],
-  ['equipment', '⚙️ 장비 손상'],
-  ['other', '❓ 기타'],
+  ['spill', '유출'],
+  ['exposure', '노출'],
+  ['burn', '화상'],
+  ['equipment', '장비 손상'],
+  ['other', '기타'],
 ]
 const SEVERITIES = [
   ['low', '경미', 'var(--green)', 'var(--green-light)'],
@@ -18,7 +19,7 @@ const SEVERITIES = [
 const categoryLabel = v => CATEGORIES.find(c => c[0] === v)?.[1] || v
 const severityInfo = v => SEVERITIES.find(s => s[0] === v) || SEVERITIES[0]
 
-export default function HazardLogScreen({ labId, user, onClose }) {
+export default function HazardLogScreen({ labId, user }) {
   const hook = useCollection(labId, 'hazard_incidents', 'occurred_at')
   const [showAdd, setShowAdd] = useState(false)
   const [sel, setSel] = useState(null)
@@ -58,37 +59,36 @@ export default function HazardLogScreen({ labId, user, onClose }) {
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 250, background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}>
-      <div className="page-header" style={{ paddingTop: 'calc(18px + env(safe-area-inset-top, 0px))', display: 'flex', alignItems: 'center', gap: 10 }}>
-        <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, color: 'var(--text)', padding: '0 4px 0 0', lineHeight: 1 }}>‹</button>
-        <div className="page-title" style={{ flex: 1 }}>⚠️ 위험물 이력</div>
-        <button onClick={() => setShowAdd(true)}
-          style={{ padding: '8px 14px', background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-          + 기록
-        </button>
+    <div>
+      <div className="page-header">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="page-title">위험물 이력</div>
+          <button onClick={() => setShowAdd(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '8px 14px', background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+            <Icon.Plus size={14} strokeWidth={2.4} /> 기록
+          </button>
+        </div>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 24 }}>
-        {hook.loading ? null : hook.data.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text2)' }}>
-            <div style={{ fontSize: 36, marginBottom: 12 }}>⚠️</div>
-            <div style={{ fontWeight: 500 }}>기록된 위험물 이력이 없습니다</div>
-            <div style={{ fontSize: 12, marginTop: 4 }}>+ 기록 버튼으로 사고를 기록하세요</div>
-          </div>
-        ) : hook.data.map(inc => {
-          const sev = severityInfo(inc.severity)
-          return (
-            <div key={inc.id} className="equip-card" onClick={() => setSel(inc)}>
-              <div className="equip-icon" style={{ background: sev[3] }}>{CATEGORIES.find(c => c[0] === inc.category)?.[1]?.slice(0, 2) || '⚠️'}</div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 600, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inc.title}</div>
-                <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>{categoryLabel(inc.category)} · {inc.occurredAt} · {inc.reporter}</div>
-              </div>
-              <span className="chip" style={{ background: sev[3], color: sev[2] }}>{sev[1]}</span>
+      {hook.loading ? null : hook.data.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text2)' }}>
+          <Icon.AlertTriangle size={32} strokeWidth={1.5} style={{ marginBottom: 12, opacity: .5 }} />
+          <div style={{ fontWeight: 500 }}>기록된 위험물 이력이 없습니다</div>
+          <div style={{ fontSize: 12, marginTop: 4 }}>+ 기록 버튼으로 사고를 기록하세요</div>
+        </div>
+      ) : hook.data.map(inc => {
+        const sev = severityInfo(inc.severity)
+        return (
+          <div key={inc.id} className="equip-card" onClick={() => setSel(inc)}>
+            <div className="equip-icon" style={{ background: sev[3], color: sev[2] }}><Icon.AlertTriangle size={20} /></div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 600, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inc.title}</div>
+              <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>{categoryLabel(inc.category)} · {inc.occurredAt} · {inc.reporter}</div>
             </div>
-          )
-        })}
-      </div>
+            <span className="chip" style={{ background: sev[3], color: sev[2] }}>{sev[1]}</span>
+          </div>
+        )
+      })}
 
       {showAdd && (
         <div className="sheet-backdrop" onClick={e => e.target === e.currentTarget && setShowAdd(false)}>
@@ -150,8 +150,8 @@ export default function HazardLogScreen({ labId, user, onClose }) {
           <div className="sheet">
             <div className="sheet-handle" />
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-              <div style={{ width: 48, height: 48, borderRadius: 12, background: severityInfo(sel.severity)[3], display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>
-                {CATEGORIES.find(c => c[0] === sel.category)?.[1]?.slice(0, 2) || '⚠️'}
+              <div style={{ width: 48, height: 48, borderRadius: 12, background: severityInfo(sel.severity)[3], color: severityInfo(sel.severity)[2], display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Icon.AlertTriangle size={24} />
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 700, fontSize: 17 }}>{sel.title}</div>
