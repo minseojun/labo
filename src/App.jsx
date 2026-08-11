@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
+import { App as CapacitorApp } from '@capacitor/app'
+import { Capacitor } from '@capacitor/core'
 import { supabase } from './supabase'
 import AuthScreen from './components/AuthScreen'
 import HomeTab from './components/HomeTab'
@@ -135,6 +137,17 @@ export default function App() {
   // 타이머 — App 레벨에서 관리해서 탭 전환해도 유지
   const { timers, addTimer, updateTimer, deleteTimer } = useTimers()
 
+  // 안드로이드 하드웨어 뒤로가기 — 사이드바 닫기 > 홈 탭으로 > 앱 종료 순으로 처리
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return
+    const sub = CapacitorApp.addListener('backButton', () => {
+      if (showSidebar) { setShowSidebar(false); return }
+      if (activeTab !== 'home') { setActiveTab('home'); return }
+      CapacitorApp.exitApp()
+    })
+    return () => { sub.then(s => s.remove()) }
+  }, [showSidebar, activeTab])
+
   useEffect(() => {
     let active = true
 
@@ -208,7 +221,7 @@ export default function App() {
       {/* 상단 헤더 */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '14px 20px 0', position: 'sticky', top: 0, zIndex: 50,
+        padding: 'calc(14px + env(safe-area-inset-top, 0px)) 20px 0', position: 'sticky', top: 0, zIndex: 50,
         background: 'var(--bg)',
       }}>
         <div>

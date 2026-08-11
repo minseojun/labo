@@ -1,4 +1,6 @@
-* { margin: 0; padding: 0; box-sizing: border-box; }
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+button, a { -webkit-touch-callout: none; user-select: none; }
+html { overscroll-behavior-y: none; }
 
 :root {
   --green: #1F9D6B;

@@ -1,4 +1,6 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { StatusBar, Style } from '@capacitor/status-bar'
+import { Capacitor } from '@capacitor/core'
 import { supabase } from '../supabase'
 import { redistributeTasks } from '../utils'
 
@@ -26,6 +28,13 @@ export default function AuthScreen({ onLogin }) {
   const [role, setRole] = useState('학부인턴')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+
+  // 로그인 화면 상단은 진한 초록 히어로라 상태바 아이콘을 밝게, 나가면 원래대로
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return
+    StatusBar.setStyle({ style: Style.Light }).catch(() => {})
+    return () => { StatusBar.setStyle({ style: Style.Dark }).catch(() => {}) }
+  }, [])
 
   const handleLogin = async () => {
     setError(''); setLoading(true)
