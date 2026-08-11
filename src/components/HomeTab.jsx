@@ -136,7 +136,9 @@ export default function HomeTab({ user, schedules, schedulesHook, supplies, noti
       {/* 히어로 헤더 */}
       <div style={{
         background: 'linear-gradient(135deg, #2BBD83 0%, #1F9D6B 60%, #157A52 100%)',
-        padding: '52px 20px 24px', color: '#fff', position: 'relative', overflow: 'hidden',
+        padding: '18px 20px 26px', color: '#fff', position: 'relative', overflow: 'hidden',
+        borderRadius: '0 0 28px 28px', boxShadow: '0 14px 28px -12px rgba(20,122,79,0.35)',
+        margin: '0 0 4px',
       }}>
         <div style={{ position: 'absolute', top: -40, right: -40, width: 160, height: 160, borderRadius: '50%', background: 'rgba(255,255,255,0.06)' }} />
         <div style={{ position: 'absolute', bottom: -20, right: 50, width: 80, height: 80, borderRadius: '50%', background: 'rgba(255,255,255,0.04)' }} />

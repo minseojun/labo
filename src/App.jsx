@@ -13,6 +13,7 @@ import HazardLogScreen from './components/HazardLogScreen'
 import { useCollection, useMembers } from './hooks/useSupabase'
 import ToastContainer from './components/ToastContainer'
 import { toast } from './utils/toast'
+import { haptic } from './utils/haptics'
 import { CORE_TABS } from './modules'
 import './App.css'
 
@@ -133,6 +134,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('home')
   const [showSidebar, setShowSidebar] = useState(false)
   const [showHazardLog, setShowHazardLog] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
 
   // 타이머 — App 레벨에서 관리해서 탭 전환해도 유지
   const { timers, addTimer, updateTimer, deleteTimer } = useTimers()
@@ -224,11 +226,13 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      {/* 상단 헤더 */}
+      {/* 상단 헤더 — 스크롤하면 살짝 그림자가 생겨서 콘텐츠 위에 떠 있는 느낌을 줌 */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: 'calc(14px + env(safe-area-inset-top, 0px)) 20px 0', position: 'sticky', top: 0, zIndex: 50,
+        padding: 'calc(14px + env(safe-area-inset-top, 0px)) 20px 12px', position: 'sticky', top: 0, zIndex: 50,
         background: 'var(--bg)',
+        boxShadow: scrolled ? '0 1px 0 rgba(14,17,23,0.06), 0 6px 16px -4px rgba(14,17,23,0.08)' : 'none',
+        transition: 'box-shadow .2s ease',
       }}>
         <div>
           <div style={{ fontWeight: 900, fontSize: 21, color: 'var(--green)', letterSpacing: -1.5, lineHeight: 1 }}>LABO</div>
@@ -238,7 +242,7 @@ export default function App() {
             </div>
           )}
         </div>
-        <button onClick={() => setShowSidebar(true)} style={{
+        <button onClick={() => { haptic.light(); setShowSidebar(true) }} style={{
           width: 38, height: 38, borderRadius: '50%',
           background: 'linear-gradient(135deg, var(--green-light) 0%, #d0eddf 100%)',
           border: '1.5px solid var(--green-light)',
@@ -251,7 +255,7 @@ export default function App() {
         </button>
       </div>
 
-      <div className="content-area">
+      <div className="content-area" onScroll={e => setScrolled(e.currentTarget.scrollTop > 4)}>
         {activeTab === 'home' && (
           <HomeTab user={user} schedules={schedulesHook.data} schedulesHook={schedulesHook}
             supplies={suppliesHook.data} notices={noticesHook.data} setActiveTab={setActiveTab} timers={timers}
@@ -283,7 +287,7 @@ export default function App() {
       <div className="tab-bar">
         {visibleTabs.map(t => (
           <button key={t.id} className={`tab-item${activeTab === t.id ? ' active' : ''}`}
-            onClick={() => setActiveTab(t.id)}
+            onClick={() => { if (activeTab !== t.id) { haptic.selection(); setActiveTab(t.id) } }}
             style={{ position: 'relative' }}>
             <span className="tab-icon">{t.icon}</span>
             <span className="tab-label">{t.label}</span>
