@@ -1,0 +1,25 @@
+{
+  "appId": "com.labo.app",
+  "appName": "LABO",
+  "webDir": "dist",
+  "backgroundColor": "#F5F2EA",
+  "ios": {
+    "contentInset": "always",
+    "backgroundColor": "#F5F2EA"
+  },
+  "android": {
+    "backgroundColor": "#F5F2EA"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 600,
+      "backgroundColor": "#1F9D6B",
+      "androidSplashResourceName": "splash",
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#F5F2EA"
+    }
+  }
+}

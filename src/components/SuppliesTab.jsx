@@ -1,6 +1,4 @@
 import React, { useState } from 'react'
-import { updateDoc, doc, arrayUnion } from 'firebase/firestore'
-import { db } from '../firebase'
 import { statusLabel, statusBg, statusColor } from '../utils'
 import { toast } from '../utils/toast'
 
@@ -27,10 +25,11 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
   const changeStatus = async (id, newStatus, currentStatus) => {
     if (!canEdit) return
     const entry = { user: user.name, from: currentStatus, to: newStatus, time: new Date().toLocaleString('ko-KR') }
+    const current = supplies.find(s => s.id === id) || sel
     try {
-      await updateDoc(doc(db, 'labs', labId, 'supplies', id), {
+      await suppliesHook.update(id, {
         status: newStatus,
-        history: arrayUnion(entry)
+        history: [...(current?.history || []), entry],
       })
       setSel(p => p && p.id === id ? { ...p, status: newStatus, history: [...(p.history || []), entry] } : p)
     } catch (e) {

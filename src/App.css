@@ -243,7 +243,7 @@
   overflow: hidden;
 }
 .auth-hero {
-  flex: 0 0 auto; padding: 60px 32px 44px;
+  flex: 0 0 auto; padding: calc(60px + env(safe-area-inset-top, 0px)) 32px 44px;
   position: relative; overflow: hidden;
 }
 .auth-hero-deco {

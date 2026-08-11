@@ -1,7 +1,5 @@
 import React, { useState } from 'react'
-import { signOut, updateProfile } from 'firebase/auth'
-import { doc, updateDoc, deleteDoc } from 'firebase/firestore'
-import { auth, db } from '../firebase'
+import { supabase } from '../supabase'
 import { memberColor, assignMemberColors } from '../utils'
 import { toast } from '../utils/toast'
 
@@ -29,18 +27,35 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate 
   const colorMap = assignMemberColors(uniqueMembers)
   const isAdmin = user.role === '교수'
 
+  const [deleting, setDeleting] = useState(false)
+
   const handleLogout = async () => {
-    await signOut(auth)
+    await supabase.auth.signOut()
     window.location.reload()
+  }
+
+  const handleDeleteAccount = async () => {
+    if (!window.confirm('정말 탈퇴하시겠어요?\n계정과 작성한 데이터(프로필, 할 일 등)가 영구적으로 삭제되고 되돌릴 수 없어요.')) return
+    if (!window.confirm('마지막 확인이에요. 계정을 삭제할까요?')) return
+    setDeleting(true)
+    try {
+      const { error } = await supabase.functions.invoke('delete-account')
+      if (error) throw error
+      await supabase.auth.signOut()
+      window.location.reload()
+    } catch (e) {
+      console.error(e)
+      toast.error('탈퇴 처리에 실패했어요. 잠시 후 다시 시도해주세요.')
+      setDeleting(false)
+    }
   }
 
   const handleSave = async () => {
     if (!newName.trim()) return
     setSaving(true)
     try {
-      await updateDoc(doc(db, 'users', user.id), { name: newName.trim(), avatar: selAvatar })
-      await updateDoc(doc(db, 'labs', user.labId, 'members', user.id), { name: newName.trim(), avatar: selAvatar })
-      if (auth.currentUser) await updateProfile(auth.currentUser, { displayName: newName.trim() })
+      await supabase.from('profiles').update({ name: newName.trim(), avatar: selAvatar }).eq('id', user.id)
+      await supabase.from('lab_members').update({ name: newName.trim(), avatar: selAvatar }).eq('lab_id', user.labId).eq('user_id', user.id)
       onUserUpdate({ ...user, name: newName.trim(), avatar: selAvatar })
       setEditing(false)
     } catch (e) { console.error(e) }
@@ -49,9 +64,9 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate 
 
   const handleRoleChange = async (memberId, newRole) => {
     try {
-      // users/{memberId} 문서는 본인만 쓸 수 있어서(보안 규칙) 여기서 직접 못 고침 —
-      // members 문서만 바꾸면 해당 유저 세션이 실시간 감시로 스스로 동기화함
-      await updateDoc(doc(db, 'labs', user.labId, 'members', memberId), { role: newRole })
+      // profiles 행은 본인만 쓸 수 있어서(RLS) 여기서 직접 못 고침 —
+      // lab_members 행만 바꾸면 해당 유저 세션이 실시간 감시로 스스로 동기화함
+      await supabase.from('lab_members').update({ role: newRole }).eq('lab_id', user.labId).eq('user_id', memberId)
       setManagingMember(p => p ? { ...p, role: newRole } : p)
       toast.success('역할을 변경했어요')
     } catch (e) {
@@ -63,7 +78,7 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate 
   const handleKick = async (memberId) => {
     if (!window.confirm('이 구성원을 연구실에서 내보내시겠습니까?')) return
     try {
-      await deleteDoc(doc(db, 'labs', user.labId, 'members', memberId))
+      await supabase.from('lab_members').delete().eq('lab_id', user.labId).eq('user_id', memberId)
       setManagingMember(null)
     } catch (e) {
       console.error(e)
@@ -79,8 +94,8 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate 
       <div style={{ position: 'fixed', top: 0, right: 'max(0px, calc((100vw - 480px) / 2))', bottom: 0, width: 'min(82%, 320px)', background: 'var(--card)', zIndex: 301, display: 'flex', flexDirection: 'column', animation: 'slideInRight .25s ease', boxShadow: '-4px 0 24px rgba(0,0,0,0.12)' }}>
 
         {/* 헤더 */}
-        <div style={{ padding: '48px 20px 20px', background: 'var(--green)', color: '#fff', position: 'relative' }}>
-          <button onClick={onClose} style={{ position: 'absolute', top: 16, right: 16, background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', width: 32, height: 32, borderRadius: '50%', cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+        <div style={{ padding: 'calc(48px + env(safe-area-inset-top, 0px)) 20px 20px', background: 'var(--green)', color: '#fff', position: 'relative' }}>
+          <button onClick={onClose} style={{ position: 'absolute', top: 'calc(16px + env(safe-area-inset-top, 0px))', right: 16, background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', width: 32, height: 32, borderRadius: '50%', cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
           <div style={{ width: 68, height: 68, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', border: '2px solid rgba(255,255,255,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 34, marginBottom: 12 }}>{avatar}</div>
           {editing ? (
             <input value={newName} onChange={e => setNewName(e.target.value)} style={{ fontSize: 18, fontWeight: 700, color: '#fff', background: 'rgba(255,255,255,0.15)', border: '1.5px solid rgba(255,255,255,0.5)', borderRadius: 8, padding: '4px 10px', width: '100%', outline: 'none', fontFamily: 'inherit', marginBottom: 4 }} onKeyDown={e => e.key === 'Enter' && handleSave()} autoFocus />
@@ -156,9 +171,12 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate 
           </div>
         </div>
 
-        {/* 로그아웃 */}
+        {/* 로그아웃 / 탈퇴 */}
         <div style={{ padding: '16px 20px', borderTop: '1px solid var(--border)' }}>
           <button onClick={handleLogout} style={{ width: '100%', padding: '12px', background: 'var(--red-light)', color: 'var(--red)', border: 'none', borderRadius: 10, fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>로그아웃</button>
+          <button onClick={handleDeleteAccount} disabled={deleting} style={{ width: '100%', padding: '10px', marginTop: 8, background: 'none', color: 'var(--text3)', border: 'none', fontWeight: 500, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'underline' }}>
+            {deleting ? '탈퇴 처리 중...' : '계정 탈퇴'}
+          </button>
         </div>
       </div>
 

@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react'
-import { addDoc, collection, onSnapshot, orderBy, query, serverTimestamp, deleteDoc, doc } from 'firebase/firestore'
-import { db } from '../../firebase'
+import React, { useState, useEffect, useCallback } from 'react'
+import { supabase } from '../../supabase'
+import { toCamelRow } from '../../hooks/useSupabase'
 import { toast } from '../../utils/toast'
 
 export default function NoticeComments({ labId, noticeId, user }) {
@@ -8,26 +8,33 @@ export default function NoticeComments({ labId, noticeId, user }) {
   const [text, setText] = useState('')
   const [open, setOpen] = useState(false)
 
+  const fetchComments = useCallback(async () => {
+    if (!labId || !noticeId) return
+    const { data, error } = await supabase
+      .from('notice_comments').select('*').eq('notice_id', noticeId).order('created_at', { ascending: true })
+    if (error) { console.error(error); return }
+    setComments(data.map(toCamelRow))
+  }, [labId, noticeId])
+
   useEffect(() => {
     if (!open || !labId || !noticeId) return
-    const q = query(
-      collection(db, 'labs', labId, 'notices', noticeId, 'comments'),
-      orderBy('createdAt', 'asc')
-    )
-    const unsub = onSnapshot(q, snap =>
-      setComments(snap.docs.map(d => ({ id: d.id, ...d.data() })))
-    , err => console.error(err))
-    return unsub
-  }, [open, labId, noticeId])
+    fetchComments()
+    const channel = supabase
+      .channel(`notice_comments-${noticeId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notice_comments', filter: `notice_id=eq.${noticeId}` }, fetchComments)
+      .subscribe()
+    return () => supabase.removeChannel(channel)
+  }, [open, labId, noticeId, fetchComments])
 
   const addComment = async () => {
     const trimmed = text.trim()
     if (!trimmed || trimmed.length > 500) return
     try {
-      await addDoc(collection(db, 'labs', labId, 'notices', noticeId, 'comments'), {
-        author: user.name, avatar: user.avatar || '', role: user.role,
-        text: trimmed, createdAt: serverTimestamp()
+      const { error } = await supabase.from('notice_comments').insert({
+        notice_id: noticeId, lab_id: labId,
+        author: user.name, avatar: user.avatar || '', role: user.role, text: trimmed,
       })
+      if (error) throw error
       setText('')
     } catch (e) {
       console.error(e)
@@ -37,7 +44,8 @@ export default function NoticeComments({ labId, noticeId, user }) {
 
   const deleteComment = async (commentId) => {
     try {
-      await deleteDoc(doc(db, 'labs', labId, 'notices', noticeId, 'comments', commentId))
+      const { error } = await supabase.from('notice_comments').delete().eq('id', commentId)
+      if (error) throw error
     } catch (e) {
       console.error(e)
       toast.error('댓글 삭제에 실패했어요.')
@@ -63,7 +71,7 @@ export default function NoticeComments({ labId, noticeId, user }) {
                 <span style={{ fontSize: 12, fontWeight: 600 }}>{c.author}</span>
                 <span style={{ fontSize: 10, color: 'var(--text2)' }}>{c.role}</span>
                 <span style={{ fontSize: 10, color: 'var(--text2)', marginLeft: 'auto' }}>
-                  {c.createdAt?.toDate?.()?.toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) || ''}
+                  {c.createdAt ? new Date(c.createdAt).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
                 </span>
                 {(c.author === user.name || user.role === '교수') && (
                   <button onClick={() => deleteComment(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text2)', fontSize: 13, padding: '0 2px' }}>×</button>

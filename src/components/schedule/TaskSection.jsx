@@ -1,5 +1,4 @@
 import React, { useState, useMemo } from 'react'
-import { deleteField } from 'firebase/firestore'
 import { fmtDate, memberColor, assignMemberColors, taskRotation, computeSchedule, scheduleAssigneeOn, scheduleIsOverridden, scheduleMemberWorkload, redistributeTasks } from '../../utils'
 import { toast } from '../../utils/toast'
 import TaskCalendar from './TaskCalendar'
@@ -155,8 +154,9 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
 
   const confirmSwap = async (newName) => {
     if (!swapTask) return
+    const task = tasks.find(t => t.id === swapTask.id)
     try {
-      await schedulesHook.update(swapTask.id, { [`overrides.${swapTask.date}`]: newName })
+      await schedulesHook.update(swapTask.id, { overrides: { ...(task?.overrides || {}), [swapTask.date]: newName } })
       toast.success(`${dateLabel} ${swapTask.name} 담당을 ${newName}(으)로 바꿨어요`)
       setSwapTask(null)
     } catch (e) {
@@ -166,8 +166,11 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
 
   const revertSwap = async () => {
     if (!swapTask) return
+    const task = tasks.find(t => t.id === swapTask.id)
+    const nextOverrides = { ...(task?.overrides || {}) }
+    delete nextOverrides[swapTask.date]
     try {
-      await schedulesHook.update(swapTask.id, { [`overrides.${swapTask.date}`]: deleteField() })
+      await schedulesHook.update(swapTask.id, { overrides: nextOverrides })
       toast.success('원래 배정으로 되돌렸어요')
       setSwapTask(null)
     } catch (e) {
