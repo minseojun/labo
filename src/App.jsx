@@ -252,7 +252,7 @@ export default function App() {
         )}
         {activeTab === 'schedule' && (
           <ScheduleTab labId={labId} schedules={schedulesHook.data} schedulesHook={schedulesHook}
-            notices={noticesHook.data} noticesHook={noticesHook} user={user} />
+            notices={noticesHook.data} noticesHook={noticesHook} members={members} user={user} />
         )}
         {activeTab === 'equipment' && (
           <EquipmentTab labId={labId} equipment={equipmentHook.data} equipmentHook={equipmentHook} user={user} />
