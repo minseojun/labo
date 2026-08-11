@@ -10,11 +10,12 @@ create extension if not exists "pgcrypto";
 -- 1. labs — 연구실
 -- ----------------------------------------------------------------------------
 create table labs (
-  id          uuid primary key default gen_random_uuid(),
-  name        text not null,
-  code        text not null unique,
-  prof_name   text not null,
-  created_at  timestamptz not null default now()
+  id               uuid primary key default gen_random_uuid(),
+  name             text not null,
+  code             text not null unique,
+  prof_name        text not null,
+  enabled_modules  text[] not null default '{}',
+  created_at       timestamptz not null default now()
 );
 
 -- ----------------------------------------------------------------------------
@@ -131,7 +132,23 @@ create table notice_comments (
 );
 
 -- ----------------------------------------------------------------------------
--- 8. todos — 개인 할일 (본인만 접근)
+-- 8. hazard_incidents — 위험물 이력 (Wet Lab 모듈: 유출/노출/화상 등 안전 사고 기록)
+-- ----------------------------------------------------------------------------
+create table hazard_incidents (
+  id            uuid primary key default gen_random_uuid(),
+  lab_id        uuid not null references labs(id) on delete cascade,
+  title         text not null,
+  category      text not null check (category in ('spill', 'exposure', 'burn', 'equipment', 'other')),
+  severity      text not null default 'low' check (severity in ('low', 'medium', 'high')),
+  location      text,
+  action_taken  text,
+  reporter      text not null,
+  occurred_at   text not null,
+  created_at    timestamptz not null default now()
+);
+
+-- ----------------------------------------------------------------------------
+-- 9. todos — 개인 할일 (본인만 접근)
 -- ----------------------------------------------------------------------------
 create table todos (
   id          uuid primary key default gen_random_uuid(),
@@ -201,6 +218,7 @@ alter table equipment_comments enable row level security;
 alter table supplies enable row level security;
 alter table notices enable row level security;
 alter table notice_comments enable row level security;
+alter table hazard_incidents enable row level security;
 alter table todos enable row level security;
 
 -- ----------------------------------------------------------------------------
@@ -286,6 +304,14 @@ create policy "notice_comments_delete" on notice_comments for delete
   using (is_lab_member(notice_lab_id(notice_id)) and is_professor(notice_lab_id(notice_id)));
 
 -- ----------------------------------------------------------------------------
+-- hazard_incidents: 조회/등록/수정은 멤버 전체, 삭제는 교수만
+-- ----------------------------------------------------------------------------
+create policy "hazard_select" on hazard_incidents for select using (is_lab_member(lab_id));
+create policy "hazard_insert" on hazard_incidents for insert with check (is_lab_member(lab_id));
+create policy "hazard_update" on hazard_incidents for update using (is_lab_member(lab_id));
+create policy "hazard_delete" on hazard_incidents for delete using (is_professor(lab_id));
+
+-- ----------------------------------------------------------------------------
 -- todos: 본인만 접근
 -- ----------------------------------------------------------------------------
 create policy "todos_select_own" on todos for select using (auth.uid() = user_id);
@@ -303,6 +329,7 @@ alter publication supabase_realtime add table supplies;
 alter publication supabase_realtime add table notices;
 alter publication supabase_realtime add table notice_comments;
 alter publication supabase_realtime add table lab_members;
+alter publication supabase_realtime add table hazard_incidents;
 alter publication supabase_realtime add table todos;
 
 -- ============================================================================
@@ -314,5 +341,6 @@ create index idx_supplies_lab    on supplies(lab_id);
 create index idx_notices_lab     on notices(lab_id);
 create index idx_eq_comments     on equipment_comments(equipment_id);
 create index idx_notice_comments on notice_comments(notice_id);
+create index idx_hazard_lab      on hazard_incidents(lab_id);
 create index idx_todos_user      on todos(user_id);
 create index idx_profiles_lab    on profiles(lab_id);

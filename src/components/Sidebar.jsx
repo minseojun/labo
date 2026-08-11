@@ -2,11 +2,26 @@ import React, { useState } from 'react'
 import { supabase } from '../supabase'
 import { memberColor, assignMemberColors } from '../utils'
 import { toast } from '../utils/toast'
+import { MODULES, isModuleEnabled } from '../modules'
 
 const AVATARS = ['🧑‍🔬','👩‍🔬','👨‍🔬','🧑‍💻','👩‍💻','👨‍💻','🧑‍🎓','👩‍🎓','👨‍🎓','🦊','🐧','🐻','🌱','⚗️','🔬','🧪','💡','🚀']
 const ROLES = ['학부인턴','학부연구생','대학원생','교수']
 
-export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate }) {
+function ToggleSwitch({ on, onClick }) {
+  return (
+    <div onClick={onClick} style={{
+      width: 44, height: 26, borderRadius: 13, cursor: 'pointer', flexShrink: 0,
+      background: on ? 'var(--green)' : 'var(--border)', position: 'relative', transition: 'background .2s',
+    }}>
+      <div style={{
+        position: 'absolute', top: 2, left: on ? 20 : 2, width: 22, height: 22, borderRadius: '50%',
+        background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.25)', transition: 'left .2s',
+      }} />
+    </div>
+  )
+}
+
+export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate, onLabUpdate, onOpenModule }) {
   const [editing, setEditing] = useState(false)
   const [newName, setNewName] = useState(user.name || '')
   const [selAvatar, setSelAvatar] = useState(user.avatar || '🧑‍🔬')
@@ -72,6 +87,19 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate 
     } catch (e) {
       console.error(e)
       toast.error('역할 변경에 실패했어요.')
+    }
+  }
+
+  const handleToggleModule = async (key, enabled) => {
+    const current = labInfo?.enabledModules || []
+    const next = enabled ? [...new Set([...current, key])] : current.filter(k => k !== key)
+    try {
+      await supabase.from('labs').update({ enabled_modules: next }).eq('id', user.labId)
+      onLabUpdate({ ...labInfo, enabledModules: next })
+      toast.success(enabled ? '모듈을 켰어요' : '모듈을 껐어요')
+    } catch (e) {
+      console.error(e)
+      toast.error('모듈 설정 변경에 실패했어요.')
     }
   }
 
@@ -158,9 +186,35 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate 
             ))}
           </div>
 
+          {/* 모듈 관리 (교수 전용) — 랩 성격에 맞게 기능을 켜고 끔 */}
+          {isAdmin && (
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: .6, marginBottom: 3 }}>모듈 관리</div>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 12 }}>연구실 성격에 맞는 기능만 켜두세요</div>
+              {MODULES.map(m => (
+                <div key={m.key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0' }}>
+                  <span style={{ fontSize: 17 }}>{m.icon}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>{m.label}</div>
+                    <div style={{ fontSize: 10.5, color: 'var(--text2)', marginTop: 1 }}>{m.description}</div>
+                  </div>
+                  <ToggleSwitch on={isModuleEnabled(labInfo, m.key)}
+                    onClick={() => handleToggleModule(m.key, !isModuleEnabled(labInfo, m.key))} />
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* 설정 */}
           <div style={{ padding: '16px 20px' }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: .6, marginBottom: 10 }}>설정</div>
+            {MODULES.filter(m => isModuleEnabled(labInfo, m.key)).map(m => (
+              <div key={m.key} onClick={() => onOpenModule(m.key)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
+                <span style={{ fontSize: 18 }}>{m.icon}</span>
+                <span style={{ fontSize: 14 }}>{m.label}</span>
+                <span style={{ marginLeft: 'auto', color: 'var(--text2)' }}>›</span>
+              </div>
+            ))}
             {[{ key: 'notify', icon: '🔔', label: '알림 설정' }, { key: 'help', icon: '❓', label: '도움말' }, { key: 'about', icon: '📋', label: '서비스 정보' }].map(item => (
               <div key={item.key} onClick={() => setShowInfo(item.key)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
                 <span style={{ fontSize: 18 }}>{item.icon}</span>
