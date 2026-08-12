@@ -179,7 +179,6 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('home')
   const [showSidebar, setShowSidebar] = useState(false)
-  const [showModuleSheet, setShowModuleSheet] = useState(false)
   const [scrolled, setScrolled] = useState(false)
 
   // 타이머 — App 레벨에서 관리해서 탭 전환해도 유지
@@ -190,12 +189,11 @@ export default function App() {
     if (!Capacitor.isNativePlatform()) return
     const sub = CapacitorApp.addListener('backButton', () => {
       if (showSidebar) { setShowSidebar(false); return }
-      if (showModuleSheet) { setShowModuleSheet(false); return }
       if (activeTab !== 'home') { setActiveTab('home'); return }
       CapacitorApp.exitApp()
     })
     return () => { sub.then(s => s.remove()) }
-  }, [showSidebar, showModuleSheet, activeTab])
+  }, [showSidebar, activeTab])
 
   useEffect(() => {
     let active = true
@@ -263,13 +261,10 @@ export default function App() {
 
   const labId = user?.labId
   const enabledModuleTabs = MODULES.filter(m => isModuleEnabled(labInfo, m.key))
-  // 하단 탭바는 홈 + 기본 탭(최대 4개)으로 고정 — 랩이 모듈을 여러 개 켜도
-  // 탭이 계속 늘어나 엄지로 누르기 힘들어지지 않도록, 모듈은 전부 "더보기" 시트로 모음
-  const fixedTabs = TABS.filter(t => t.id === 'home' || !labInfo?.disabledTabs?.includes(t.id))
-  const activeModule = enabledModuleTabs.find(m => m.key === activeTab)
-  const visibleTabs = enabledModuleTabs.length > 0
-    ? [...fixedTabs, { id: '__more__', icon: activeModule?.icon || Icon.Grid, label: activeModule?.label || '더보기' }]
-    : fixedTabs
+  const visibleTabs = [
+    ...TABS.filter(t => t.id === 'home' || !labInfo?.disabledTabs?.includes(t.id)),
+    ...enabledModuleTabs.map(m => ({ id: m.key, icon: m.icon, label: m.label })),
+  ]
   const schedulesHook = useCollection(labId, 'schedules', 'date')
   const equipmentHook = useCollection(labId, 'equipment', 'created_at')
   const suppliesHook  = useCollection(labId, 'supplies', 'created_at')
@@ -344,57 +339,27 @@ export default function App() {
         ))}
       </div>
 
-      {/* 탭바 — 타이머 실행중이면 배지 표시. 모듈이 있으면 마지막 슬롯은 "더보기" 시트를 염 */}
+      {/* 탭바 — 타이머 실행중이면 배지 표시 */}
       <div className="tab-bar">
-        {visibleTabs.map(t => {
-          const isActive = t.id === '__more__' ? !!activeModule : activeTab === t.id
-          return (
-            <button key={t.id} className={`tab-item${isActive ? ' active' : ''}`}
-              onClick={() => {
-                if (t.id === '__more__') { haptic.selection(); setShowModuleSheet(true); return }
-                if (activeTab !== t.id) { haptic.selection(); setActiveTab(t.id) }
-              }}
-              style={{ position: 'relative' }}>
-              <span className="tab-icon"><t.icon size={21} strokeWidth={isActive ? 2 : 1.7} /></span>
-              <span className="tab-label">{t.label}</span>
-              {/* 타이머 실행 중 배지 */}
-              {t.id === 'timer' && runningCount > 0 && (
-                <div style={{
-                  position: 'absolute', top: 4, right: '50%', transform: 'translateX(10px)',
-                  width: 16, height: 16, borderRadius: '50%',
-                  background: 'var(--red)', color: '#fff',
-                  fontSize: 9, fontWeight: 600,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center'
-                }}>{runningCount}</div>
-              )}
-            </button>
-          )
-        })}
+        {visibleTabs.map(t => (
+          <button key={t.id} className={`tab-item${activeTab === t.id ? ' active' : ''}`}
+            onClick={() => { if (activeTab !== t.id) { haptic.selection(); setActiveTab(t.id) } }}
+            style={{ position: 'relative' }}>
+            <span className="tab-icon"><t.icon size={21} strokeWidth={activeTab === t.id ? 2 : 1.7} /></span>
+            <span className="tab-label">{t.label}</span>
+            {/* 타이머 실행 중 배지 */}
+            {t.id === 'timer' && runningCount > 0 && (
+              <div style={{
+                position: 'absolute', top: 4, right: '50%', transform: 'translateX(10px)',
+                width: 16, height: 16, borderRadius: '50%',
+                background: 'var(--red)', color: '#fff',
+                fontSize: 9, fontWeight: 600,
+                display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}>{runningCount}</div>
+            )}
+          </button>
+        ))}
       </div>
-
-      {showModuleSheet && (
-        <div className="sheet-backdrop" onClick={e => e.target === e.currentTarget && setShowModuleSheet(false)}>
-          <div className="sheet">
-            <div className="sheet-handle" />
-            <div className="sheet-title">모듈</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              {enabledModuleTabs.map(m => (
-                <button key={m.key} onClick={() => { haptic.selection(); setActiveTab(m.key); setShowModuleSheet(false) }}
-                  style={{
-                    display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8,
-                    padding: '14px 14px', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
-                    border: `1.5px solid ${activeTab === m.key ? 'var(--green)' : 'var(--border)'}`,
-                    background: activeTab === m.key ? 'var(--green-ultra)' : 'var(--card)',
-                    borderRadius: 14,
-                  }}>
-                  <m.icon size={20} strokeWidth={1.7} style={{ color: activeTab === m.key ? 'var(--green)' : 'var(--text2)' }} />
-                  <span style={{ fontSize: 13, fontWeight: 650, color: activeTab === m.key ? 'var(--green)' : 'var(--text)' }}>{m.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
 
       {showSidebar && (
         <Sidebar user={user} labInfo={labInfo} members={members}

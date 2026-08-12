@@ -37,5 +37,4 @@ export const Icon = {
   Snowflake: (p) => <Base {...p}><path d="M12 2.5v19M4.5 7.2l15 9.6M4.5 16.8l15-9.6" /><path d="M8 4.7 12 7l4-2.3M8 19.3 12 17l4 2.3M4.8 9.8 7.3 12l-2.5 2.2M19.2 9.8 16.7 12l2.5 2.2" /></Base>,
   ClipboardCheck: (p) => <Base {...p}><rect x="5.5" y="4.5" width="13" height="17" rx="2.2" /><path d="M9 4.5v-.7A1.3 1.3 0 0 1 10.3 2.5h3.4A1.3 1.3 0 0 1 15 3.8v.7" /><path d="M9 13.3 11 15.3 15.2 10.7" /></Base>,
   Search: (p) => <Base {...p}><circle cx="10.5" cy="10.5" r="6.5" /><path d="M19.5 19.5 15 15" /></Base>,
-  Grid: (p) => <Base {...p}><rect x="3.5" y="3.5" width="7.5" height="7.5" rx="1.8" /><rect x="13" y="3.5" width="7.5" height="7.5" rx="1.8" /><rect x="3.5" y="13" width="7.5" height="7.5" rx="1.8" /><rect x="13" y="13" width="7.5" height="7.5" rx="1.8" /></Base>,
 }
