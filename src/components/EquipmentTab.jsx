@@ -363,10 +363,10 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
               style={{ padding: '8px 12px', background: 'var(--card)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
               QR 스캔
             </button>
-            {isAdmin && equipment.length > 0 && (
+            {equipment.length > 0 && (
               <button onClick={() => setShowBulkQR(true)}
                 style={{ padding: '8px 12px', background: 'var(--card)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                QR 전체
+                QR 인쇄
               </button>
             )}
             {isAdmin && (

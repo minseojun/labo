@@ -312,18 +312,31 @@ grant execute on function lookup_lab_by_code(text) to anon, authenticated;
 
 -- 모듈 켜고 끄기는 교수 전용이 아니라 랩 멤버 전체가 할 수 있어야 해서(labs 테이블
 -- 자체의 update 권한은 이름/초대코드 같은 다른 필드도 있어 여전히 교수 전용으로 둠),
--- enabled_modules/disabled_tabs 이 두 컬럼만 딱 집어 바꿀 수 있는 전용 RPC를 둠
+-- enabled_modules/disabled_tabs 이 두 컬럼만 딱 집어 바꿀 수 있는 전용 RPC를 둠.
+-- UPDATE가 조건에 안 맞아 0행을 바꾸면(랩 멤버가 아니거나 잘못된 lab_id) 에러 없이
+-- 조용히 아무 일도 안 하는 게 기본 SQL 동작이라 — 클라이언트는 "성공"으로 착각하고
+-- 새로고침하면 안 바뀐 게 드러나는 문제가 있었음. FOUND로 명시적으로 예외를 던짐
 create or replace function set_lab_enabled_modules(target_lab_id uuid, new_modules text[])
-returns void language sql security definer as $$
+returns void language plpgsql security definer as $$
+begin
   update labs set enabled_modules = new_modules
   where id = target_lab_id and is_lab_member(target_lab_id);
+  if not found then
+    raise exception 'lab not found or not a member of this lab';
+  end if;
+end;
 $$;
 grant execute on function set_lab_enabled_modules(uuid, text[]) to authenticated;
 
 create or replace function set_lab_disabled_tabs(target_lab_id uuid, new_tabs text[])
-returns void language sql security definer as $$
+returns void language plpgsql security definer as $$
+begin
   update labs set disabled_tabs = new_tabs
   where id = target_lab_id and is_lab_member(target_lab_id);
+  if not found then
+    raise exception 'lab not found or not a member of this lab';
+  end if;
+end;
 $$;
 grant execute on function set_lab_disabled_tabs(uuid, text[]) to authenticated;
 
