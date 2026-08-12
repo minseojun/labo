@@ -153,6 +153,33 @@ function QRScanner({ onDetect }) {
   )
 }
 
+// 최근 8개만 — equipment_logs는 별도 테이블이라 필요한 만큼만 가져오면 되고,
+// 장비를 오래 써서 이력이 아무리 많이 쌓여도 여기 쿼리 비용은 그대로임
+function useEquipmentLogs(labId, equipmentId) {
+  const [logs, setLogs] = useState([])
+
+  const fetchLogs = useCallback(async () => {
+    if (!labId || !equipmentId) return
+    const { data, error } = await supabase
+      .from('equipment_logs').select('*').eq('equipment_id', equipmentId)
+      .order('created_at', { ascending: false }).limit(8)
+    if (error) { console.error(error); return }
+    setLogs(data.map(toCamelRow))
+  }, [labId, equipmentId])
+
+  useEffect(() => {
+    if (!labId || !equipmentId) return
+    fetchLogs()
+    const channel = supabase
+      .channel(`equipment_logs-${equipmentId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'equipment_logs', filter: `equipment_id=eq.${equipmentId}` }, fetchLogs)
+      .subscribe()
+    return () => supabase.removeChannel(channel)
+  }, [labId, equipmentId, fetchLogs])
+
+  return logs
+}
+
 function useComments(labId, equipmentId) {
   const [comments, setComments] = useState([])
 
@@ -256,6 +283,7 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
 
   const isAdmin = user.role === '교수'
   const selElapsed = useElapsedSince(sel?.status === 'in-use' ? sel.inUseSince : null)
+  const equipmentLogs = useEquipmentLogs(labId, sel?.id)
   const q = query.trim().toLowerCase()
   const filtered = equipment
     .filter(e => filter === 'all' || e.status === filter)
@@ -281,21 +309,22 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
 
   const toggleUse = async (eq) => {
     const isUsing = eq.status === 'in-use' && eq.lastUser === user.name
-    const newLog = {
-      user: user.name,
-      action: isUsing ? '사용 종료' : '사용 시작',
-      time: new Date().toLocaleString('ko-KR'),
-      memo: isUsing ? memo : ''
-    }
     const inUseSince = isUsing ? null : new Date().toISOString()
     try {
       await equipmentHook.update(eq.id, {
         status: isUsing ? 'available' : 'in-use',
         lastUser: user.name,
-        logs: [...(eq.logs || []), newLog],
         inUseSince,
       })
-      setSel(p => p ? { ...p, status: isUsing ? 'available' : 'in-use', lastUser: user.name, logs: [...(p.logs || []), newLog], inUseSince } : p)
+      // 사용 이력은 equipment_logs 별도 테이블에 쌓음 — equipment 행 안에 배열로
+      // 넣으면 오래 쓸수록 그 행 자체가 끝없이 커짐
+      const { error: logError } = await supabase.from('equipment_logs').insert({
+        equipment_id: eq.id, lab_id: labId,
+        user_name: user.name, action: isUsing ? '사용 종료' : '사용 시작',
+        memo: isUsing ? (memo || null) : null,
+      })
+      if (logError) console.error(logError)
+      setSel(p => p ? { ...p, status: isUsing ? 'available' : 'in-use', lastUser: user.name, inUseSince } : p)
       if (isUsing) setMemo('')
     } catch (e) {
       console.error(e)
@@ -311,7 +340,7 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
     if (name.length > 100) { toast.error('이름은 100자 이내로 입력해주세요.'); return }
     if (code.length > 30) { toast.error('코드는 30자 이내로 입력해주세요.'); return }
     try {
-      await equipmentHook.add({ ...form, name, code, lastUser: '-', logs: [] })
+      await equipmentHook.add({ ...form, name, code, lastUser: '-' })
       setShowAdd(false)
       setForm({ name: '', code: '', status: 'available', icon: '🔬' })
     } catch (e) {
@@ -464,16 +493,18 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
             )}
 
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', margin: '14px 0 8px', textTransform: 'uppercase', letterSpacing: .5 }}>사용 이력</div>
-            {(!sel.logs || sel.logs.length === 0) ? (
+            {equipmentLogs.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '10px 0', fontSize: 12, color: 'var(--text2)' }}>사용 이력이 없습니다</div>
-            ) : [...sel.logs].reverse().slice(0, 8).map((l, i) => (
-              <div key={i} className="log-item">
+            ) : equipmentLogs.map(l => (
+              <div key={l.id} className="log-item">
                 <div>
-                  <span style={{ fontWeight: 500 }}>{l.user}</span>
+                  <span style={{ fontWeight: 500 }}>{l.userName}</span>
                   <span style={{ color: 'var(--text2)', marginLeft: 6 }}>{l.action}</span>
                   {l.memo && <div style={{ color: 'var(--text2)', marginTop: 1, fontSize: 11 }}>{l.memo}</div>}
                 </div>
-                <div style={{ color: 'var(--text2)', whiteSpace: 'nowrap', marginLeft: 8, fontSize: 11 }}>{l.time}</div>
+                <div style={{ color: 'var(--text2)', whiteSpace: 'nowrap', marginLeft: 8, fontSize: 11 }}>
+                  {new Date(l.createdAt).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </div>
               </div>
             ))}
 

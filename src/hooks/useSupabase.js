@@ -26,9 +26,27 @@ export function toSnakeItem(item) {
 }
 
 // labs/{labId}/{table} 성격의 컬렉션 — Firestore useCollection과 동일한 인터페이스
+//
+// 실시간 갱신은 "뭐가 바뀌었든 전체를 다시 select" 하지 않고, 바뀐 행 하나만
+// 로컬 배열에 patch함(추가/교체/삭제) — 랩에 접속한 사람이 많고 목록이 길어질수록
+// 예전 방식은 매 변경마다 모두가 전체를 다시 불러와서 부담이 커졌음
 export function useCollection(labId, table, orderColumn = 'created_at', ascending = false) {
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
+
+  const sortRows = useCallback((rows) => {
+    const key = orderColumn.replace(/_([a-z])/g, (_, c) => c.toUpperCase())
+    const dir = ascending ? 1 : -1
+    return [...rows].sort((a, b) => {
+      const av = a[key], bv = b[key]
+      if (av == null && bv == null) return 0
+      if (av == null) return 1
+      if (bv == null) return -1
+      if (av < bv) return -1 * dir
+      if (av > bv) return 1 * dir
+      return 0
+    })
+  }, [orderColumn, ascending])
 
   const fetchAll = useCallback(async () => {
     if (!labId) return
@@ -47,16 +65,28 @@ export function useCollection(labId, table, orderColumn = 'created_at', ascendin
     setLoading(false)
   }, [labId, table, orderColumn, ascending])
 
+  const handleChange = useCallback((payload) => {
+    setData(prev => {
+      if (payload.eventType === 'DELETE') {
+        return prev.filter(row => row.id !== payload.old.id)
+      }
+      const row = toCamelRow(payload.new)
+      const idx = prev.findIndex(r => r.id === row.id)
+      const next = idx === -1 ? [...prev, row] : prev.map((r, i) => i === idx ? row : r)
+      return sortRows(next)
+    })
+  }, [sortRows])
+
   useEffect(() => {
     if (!labId) return
     setLoading(true)
     fetchAll()
     const channel = supabase
       .channel(`${table}-${labId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table, filter: `lab_id=eq.${labId}` }, fetchAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table, filter: `lab_id=eq.${labId}` }, handleChange)
       .subscribe()
     return () => supabase.removeChannel(channel)
-  }, [labId, table, fetchAll])
+  }, [labId, table, fetchAll, handleChange])
 
   const add = async (item) => {
     try {
@@ -109,15 +139,26 @@ export function useMembers(labId) {
     setMembers(data.map(m => ({ ...toCamelRow(m), id: m.user_id })))
   }, [labId])
 
+  const handleChange = useCallback((payload) => {
+    setMembers(prev => {
+      if (payload.eventType === 'DELETE') {
+        return prev.filter(m => m.id !== payload.old.user_id)
+      }
+      const row = { ...toCamelRow(payload.new), id: payload.new.user_id }
+      const idx = prev.findIndex(m => m.id === row.id)
+      return idx === -1 ? [...prev, row] : prev.map((m, i) => i === idx ? row : m)
+    })
+  }, [])
+
   useEffect(() => {
     if (!labId) return
     fetchMembers()
     const channel = supabase
       .channel(`lab_members-${labId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'lab_members', filter: `lab_id=eq.${labId}` }, fetchMembers)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'lab_members', filter: `lab_id=eq.${labId}` }, handleChange)
       .subscribe()
     return () => supabase.removeChannel(channel)
-  }, [labId, fetchMembers])
+  }, [labId, fetchMembers, handleChange])
 
   return members
 }
