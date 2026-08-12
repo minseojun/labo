@@ -1,7 +1,36 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
+import { supabase } from '../supabase'
+import { toCamelRow } from '../hooks/useSupabase'
 import { statusLabel, statusBg, statusColor } from '../utils'
 import { toast } from '../utils/toast'
 import { Icon } from './Icon'
+
+// supply_history는 별도 테이블이라 필요한 만큼만 가져오면 되고, 소모품 하나를
+// 오래 관리해서 이력이 아무리 쌓여도 여기 쿼리 비용은 그대로임
+function useSupplyHistory(labId, supplyId) {
+  const [history, setHistory] = useState([])
+
+  const fetchHistory = useCallback(async () => {
+    if (!labId || !supplyId) return
+    const { data, error } = await supabase
+      .from('supply_history').select('*').eq('supply_id', supplyId)
+      .order('created_at', { ascending: false }).limit(8)
+    if (error) { console.error(error); return }
+    setHistory(data.map(toCamelRow))
+  }, [labId, supplyId])
+
+  useEffect(() => {
+    if (!labId || !supplyId) return
+    fetchHistory()
+    const channel = supabase
+      .channel(`supply_history-${supplyId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'supply_history', filter: `supply_id=eq.${supplyId}` }, fetchHistory)
+      .subscribe()
+    return () => supabase.removeChannel(channel)
+  }, [labId, supplyId, fetchHistory])
+
+  return history
+}
 
 function SkeletonRow() {
   return (
@@ -20,20 +49,23 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
   const [form, setForm] = useState({ name: '', spec: '', status: 'green' })
   const [sel, setSel] = useState(null)
   const [query, setQuery] = useState('')
+  const history = useSupplyHistory(labId, sel?.id)
 
   const isAdmin = user.role === '교수'
   const canEdit = user.role === '교수' || user.role === '대학원생'
 
   const changeStatus = async (id, newStatus, currentStatus) => {
     if (!canEdit) return
-    const entry = { user: user.name, from: currentStatus, to: newStatus, time: new Date().toLocaleString('ko-KR') }
-    const current = supplies.find(s => s.id === id) || sel
     try {
-      await suppliesHook.update(id, {
-        status: newStatus,
-        history: [...(current?.history || []), entry],
+      await suppliesHook.update(id, { status: newStatus })
+      // 변경 이력은 supply_history 별도 테이블에 쌓음 — supplies 행 안에 배열로
+      // 넣으면 오래 관리할수록 그 행 자체가 끝없이 커짐
+      const { error: histError } = await supabase.from('supply_history').insert({
+        supply_id: id, lab_id: labId,
+        user_name: user.name, from_status: currentStatus, to_status: newStatus,
       })
-      setSel(p => p && p.id === id ? { ...p, status: newStatus, history: [...(p.history || []), entry] } : p)
+      if (histError) console.error(histError)
+      setSel(p => p && p.id === id ? { ...p, status: newStatus } : p)
     } catch (e) {
       console.error(e)
       toast.error('상태 변경에 실패했어요.')
@@ -45,7 +77,7 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
     if (!name) { toast.error('품목 이름을 입력해주세요.'); return }
     if (name.length > 100) { toast.error('이름은 100자 이내로 입력해주세요.'); return }
     try {
-      await suppliesHook.add({ ...form, name, history: [] })
+      await suppliesHook.add({ ...form, name })
       setShowAdd(false)
       setForm({ name: '', spec: '', status: 'green' })
     } catch (e) {
@@ -125,7 +157,7 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
       ) : (
         <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', margin: '0 16px 12px', overflow: 'hidden' }}>
           {filtered.map(s => (
-            <div key={s.id} className="supply-row" onClick={() => setSel({ ...s, history: s.history || [] })}>
+            <div key={s.id} className="supply-row" onClick={() => setSel(s)}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 500, fontSize: 13 }}>{s.name}</div>
                 <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 1 }}>{s.spec}</div>
@@ -171,15 +203,17 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
               </div>
             )}
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: .5 }}>변경 이력</div>
-            {sel.history.length === 0 ? (
+            {history.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '12px 0', fontSize: 12, color: 'var(--text2)' }}>변경 이력이 없습니다</div>
-            ) : [...sel.history].reverse().map((h, i) => (
-              <div key={i} className="log-item">
+            ) : history.map(h => (
+              <div key={h.id} className="log-item">
                 <div>
-                  <span style={{ fontWeight: 500 }}>{h.user}</span>
-                  <span style={{ color: 'var(--text2)', marginLeft: 6 }}>{statusLabel(h.from)} → {statusLabel(h.to)}</span>
+                  <span style={{ fontWeight: 500 }}>{h.userName}</span>
+                  <span style={{ color: 'var(--text2)', marginLeft: 6 }}>{statusLabel(h.fromStatus)} → {statusLabel(h.toStatus)}</span>
                 </div>
-                <div style={{ color: 'var(--text2)', fontSize: 11 }}>{h.time}</div>
+                <div style={{ color: 'var(--text2)', fontSize: 11 }}>
+                  {new Date(h.createdAt).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </div>
               </div>
             ))}
             {isAdmin && (
