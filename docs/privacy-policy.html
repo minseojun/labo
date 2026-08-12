@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LABO 개인정보처리방침</title>
+<style>
+  :root {
+    --green: #1F9D6B;
+    --green-dark: #157A52;
+    --green-light: #E6F5EE;
+    --bg: #F5F2EA;
+    --surface: #FFFFFF;
+    --text: #0E1117;
+    --text2: #5B6270;
+    --text3: #93998F;
+    --border: #E6E2D6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --green: #3ABF88;
+      --green-dark: #2FA475;
+      --green-light: #123326;
+      --bg: #14171C;
+      --surface: #1B1F26;
+      --text: #EDEFF3;
+      --text2: #A7ADB8;
+      --text3: #6D7480;
+      --border: #2A2F38;
+    }
+  }
+  :root[data-theme="dark"] {
+    --green: #3ABF88;
+    --green-dark: #2FA475;
+    --green-light: #123326;
+    --bg: #14171C;
+    --surface: #1B1F26;
+    --text: #EDEFF3;
+    --text2: #A7ADB8;
+    --text3: #6D7480;
+    --border: #2A2F38;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', system-ui, sans-serif;
+    line-height: 1.7;
+    letter-spacing: -0.01em;
+  }
+  .page {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 64px 24px 96px;
+  }
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--green-dark);
+    letter-spacing: 0.02em;
+    margin-bottom: 20px;
+  }
+  .eyebrow .mark {
+    width: 22px; height: 22px; border-radius: 7px;
+    background: var(--green);
+    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 800;
+  }
+  h1 {
+    font-size: 30px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin: 0 0 8px;
+    text-wrap: balance;
+  }
+  .effective {
+    color: var(--text2);
+    font-size: 14px;
+    margin: 0 0 40px;
+  }
+  .intro {
+    font-size: 15.5px;
+    color: var(--text2);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px 22px;
+    margin-bottom: 40px;
+  }
+  section {
+    margin-bottom: 34px;
+  }
+  h2 {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    font-size: 17px;
+    font-weight: 700;
+    margin: 0 0 12px;
+  }
+  h2 .num {
+    font-variant-numeric: tabular-nums;
+    color: var(--green);
+    font-size: 14px;
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+  section p, section li {
+    font-size: 15px;
+    color: var(--text);
+  }
+  section ul {
+    margin: 0;
+    padding-left: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  section p { margin: 0; }
+  strong { font-weight: 700; }
+  a { color: var(--green-dark); text-decoration-color: var(--border); }
+
+  .contact {
+    background: var(--green-light);
+    border-radius: 14px;
+    padding: 20px 22px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .contact .label {
+    font-size: 13px;
+    color: var(--text2);
+    font-weight: 600;
+  }
+  .contact .email {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--green-dark);
+    text-decoration: none;
+  }
+
+  hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 40px 0;
+  }
+  footer {
+    color: var(--text3);
+    font-size: 12.5px;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="eyebrow"><span class="mark">L</span>LABO</div>
+  <h1>개인정보처리방침</h1>
+  <p class="effective">시행일: 2026년 8월 12일</p>
+
+  <p class="intro">
+    LABO는 연구실 구성원들이 일정, 잡무, 장비, 소모품 등을 함께 관리할 수 있도록 돕는
+    서비스입니다. 이 문서는 LABO가 어떤 정보를 수집하고, 어떻게 사용하며, 어떻게
+    보관·삭제하는지 설명합니다.
+  </p>
+
+  <section>
+    <h2><span class="num">01</span>수집하는 정보</h2>
+    <ul>
+      <li><strong>계정 정보</strong> — 이름, 이메일 주소, 비밀번호(암호화되어 저장됨), 소속 연구실, 역할</li>
+      <li><strong>연구실 데이터</strong> — 일정, 잡무 배정, 장비 사용 기록, 소모품 재고, 공지사항 및 댓글, GPU 서버 예약, 데이터셋 정보, 냉장·냉동고 보관 위치, 온보딩 체크리스트 등 이용자가 앱 안에서 직접 입력하는 정보</li>
+      <li><strong>카메라</strong> — 장비 QR 코드 스캔 기능에서만 사용해요. 촬영된 이미지나 영상은 저장하거나 서버로 전송하지 않고, 스캔한 텍스트(QR 코드 값)만 앱 내에서 즉시 처리해요.</li>
+      <li><strong>사진(프로필 이미지)</strong> — 이용자가 직접 선택해 업로드한 프로필 사진만 수집해요. 본인의 명시적인 선택 없이는 사진 라이브러리에 접근하지 않으며, 업로드한 사진은 같은 연구실 구성원에게 프로필 아바타로 표시돼요.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="num">02</span>정보를 사용하는 목적</h2>
+    <ul>
+      <li>로그인 및 연구실 멤버십 관리</li>
+      <li>일정·잡무·장비·소모품 등 연구실 운영 데이터 동기화</li>
+      <li>서비스 이용 중 발생하는 오류 대응</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="num">03</span>정보를 저장하는 곳</h2>
+    <p>
+      모든 데이터는 <a href="https://supabase.com" target="_blank" rel="noopener">Supabase</a>
+      (PostgreSQL 기반 백엔드 서비스)에 저장돼요. Supabase의 자체 보안·개인정보 정책은
+      <a href="https://supabase.com/privacy" target="_blank" rel="noopener">supabase.com/privacy</a>를
+      참고해주세요.
+    </p>
+  </section>
+
+  <section>
+    <h2><span class="num">04</span>제3자 제공</h2>
+    <p>이용자의 정보를 광고, 마케팅 목적으로 제3자에게 판매하거나 제공하지 않아요.</p>
+  </section>
+
+  <section>
+    <h2><span class="num">05</span>정보 보관 기간 및 삭제</h2>
+    <p>
+      이용자는 앱 내 <strong>사이드바 → 계정 탈퇴</strong> 메뉴에서 언제든 직접 계정을
+      삭제할 수 있고, 삭제 시 프로필·할 일 등 개인 데이터가 즉시 영구적으로 삭제돼요.
+      연구실 공용 데이터(장비 사용 이력 등 다른 구성원과 공유되는 기록)는 연구실 운영
+      목적상 유지될 수 있어요.
+    </p>
+  </section>
+
+  <section>
+    <h2><span class="num">06</span>아동의 개인정보</h2>
+    <p>본 서비스는 대학·연구기관 이용자를 대상으로 하며, 만 14세 미만 아동을 대상으로 하지 않아요.</p>
+  </section>
+
+  <hr />
+
+  <section style="margin-bottom: 0;">
+    <h2><span class="num">07</span>문의</h2>
+    <div class="contact">
+      <span class="label">개인정보 관련 문의</span>
+      <a class="email" href="mailto:fatsnowman0728@gmail.com">fatsnowman0728@gmail.com</a>
+    </div>
+  </section>
+</div>
+</body>
+</html>
