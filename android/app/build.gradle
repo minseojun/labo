@@ -16,8 +16,25 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // 릴리즈 서명 — CI(GitHub Actions)가 LABO_KEYSTORE_* 환경변수로 주입함.
+    // 로컬 Mac에서 Android Studio로 빌드할 땐 이 값들이 없어도(=서명 안 됨) 정상이고,
+    // Build > Generate Signed Bundle/APK 마법사에서 따로 키스토어를 골라 서명하면 됨
+    def hasCiKeystore = System.getenv("LABO_KEYSTORE_PATH") != null
+    if (hasCiKeystore) {
+        signingConfigs {
+            release {
+                storeFile file(System.getenv("LABO_KEYSTORE_PATH"))
+                storePassword System.getenv("LABO_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("LABO_KEY_ALIAS")
+                keyPassword System.getenv("LABO_KEY_PASSWORD")
+            }
+        }
+    }
     buildTypes {
         release {
+            if (hasCiKeystore) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
