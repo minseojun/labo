@@ -15,6 +15,15 @@ const daysUntil = (dateStr) => {
 // 보여서 헷갈림 — 로케일 정렬로 고정
 const sortKo = (arr) => [...arr].sort((a, b) => a.localeCompare(b, 'ko'))
 
+// "3", "3번칸", "칸3"처럼 같은 칸을 가리키는 표현이 제각각이면 서로 다른 칸으로
+// 나뉘어 보임 — 숫자가 포함돼 있으면 그 숫자를 뽑아 "N번 칸"으로 통일하고,
+// 숫자가 없는 자유 텍스트(예: "문쪽", "맨 아래")는 그대로 둠
+const normalizeLocation = (raw) => {
+  const trimmed = raw.trim()
+  const match = trimmed.match(/\d+/)
+  return match ? `${match[0]}번 칸` : trimmed
+}
+
 export default function FridgeMapScreen({ labId, user }) {
   const hook = useCollection(labId, 'fridge_items', 'created_at')
   const [showAdd, setShowAdd] = useState(false)
@@ -42,7 +51,7 @@ export default function FridgeMapScreen({ labId, user }) {
     if (itemName.length > 100) { toast.error('이름은 100자 이내로 입력해주세요.'); return }
     try {
       await hook.add({
-        fridgeName, location: form.location.trim(), itemName,
+        fridgeName, location: normalizeLocation(form.location), itemName,
         quantity: form.quantity.trim(), expiresAt: form.expiresAt || null, owner: user.name,
       })
       setShowAdd(false)
@@ -195,6 +204,7 @@ export default function FridgeMapScreen({ labId, user }) {
               <input className="form-input" value={form.location} maxLength={40}
                 onChange={e => setForm(p => ({ ...p, location: e.target.value }))}
                 placeholder="예: 2번 칸" />
+              <div style={{ fontSize: 10.5, color: 'var(--text2)', marginTop: 4 }}>숫자를 포함해 입력하면 "2", "2번칸"처럼 표현이 달라도 같은 칸으로 정리돼요</div>
             </div>
             <div className="form-group">
               <label className="form-label">시약/보관품</label>
