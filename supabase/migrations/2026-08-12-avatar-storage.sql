@@ -12,7 +12,10 @@ insert into storage.buckets (id, name, public)
 values ('avatars', 'avatars', true)
 on conflict (id) do nothing;
 
-alter table storage.objects enable row level security;
+-- storage.objects는 Supabase가 기본으로 RLS를 이미 켜둔 테이블이라 여기서 다시 켤
+-- 필요가 없고, 대시보드 SQL Editor 계정은 이 테이블 소유자가 아니라서
+-- "alter table ... enable row level security"를 시도하면 42501 권한 에러가 나요.
+-- (정책 생성은 소유권 없이도 가능해서 아래 create policy들은 문제없이 실행돼요)
 
 -- 업로드 경로를 "{내 user id}/파일명"으로 강제해서, 본인 폴더 안에서만
 -- 올리고·바꾸고·지울 수 있게 함. 다운로드(select)는 버킷이 public이라
