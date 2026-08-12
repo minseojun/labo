@@ -1,0 +1,57 @@
+name: Android Release Build
+
+# 이 저장소의 리눅스 개발 환경에는 Android SDK를 받아올 네트워크 접근이 막혀있어서
+# (dl.google.com 등이 아웃바운드 정책에서 차단됨) GitHub의 빌드 서버에서 대신 빌드함.
+# Actions 탭에서 수동 실행하거나, v로 시작하는 태그를 푸시하면 자동으로 돌아감.
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install web dependencies
+        run: npm ci
+
+      - name: Build web app
+        run: npm run build
+
+      - name: Sync Capacitor Android project
+        run: npx cap sync android
+
+      - name: Decode release keystore
+        run: echo "${{ secrets.LABO_KEYSTORE_BASE64 }}" | base64 -d > android/app/release.keystore.jks
+
+      - name: Build signed release AAB
+        working-directory: android
+        env:
+          LABO_KEYSTORE_PATH: release.keystore.jks
+          LABO_KEYSTORE_PASSWORD: ${{ secrets.LABO_KEYSTORE_PASSWORD }}
+          LABO_KEY_ALIAS: ${{ secrets.LABO_KEY_ALIAS }}
+          LABO_KEY_PASSWORD: ${{ secrets.LABO_KEY_PASSWORD }}
+        run: ./gradlew bundleRelease
+
+      - name: Remove keystore from workspace
+        if: always()
+        run: rm -f android/app/release.keystore.jks
+
+      - name: Upload signed AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: labo-release-aab
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 30

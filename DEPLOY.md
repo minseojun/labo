@@ -84,24 +84,41 @@ npm run cap:android       # Android Studio 열림
 
 ## 5. Android — Play Store 제출
 
-1. Android Studio에서 **Build → Generate Signed Bundle** → keystore 새로 생성(안전한 곳에 백업 필수 — 분실하면 이후 업데이트 불가능)
+### GitHub Actions로 자동 빌드 (권장 — 로컬에 Android Studio 없어도 됨)
+
+`.github/workflows/android-release.yml`이 이미 준비돼 있어요. 클로드가 작업하던
+클라우드 환경은 `dl.google.com` 접근이 막혀있어서 Android SDK를 직접 받을 수
+없었는데, GitHub Actions의 빌드 서버는 이 제약이 없어서 여기서 대신 빌드해요.
+
+1. 릴리즈 서명 키스토어(`labo-release.keystore.jks`)와 비밀번호를 이미 전달받으셨을
+   거예요 — **반드시 먼저 안전한 곳에 백업**하세요 (잃어버리면 이후 업데이트 불가능).
+2. GitHub 저장소 → **Settings → Secrets and variables → Actions → New repository secret**에서
+   아래 4개를 등록:
+   - `LABO_KEYSTORE_BASE64` — 키스토어 파일을 base64로 인코딩한 값 (`base64 -i labo-release.keystore.jks | pbcopy` 로 Mac에서 클립보드에 복사 가능)
+   - `LABO_KEYSTORE_PASSWORD`, `LABO_KEY_ALIAS`, `LABO_KEY_PASSWORD` — 전달받은 `keystore-credentials.txt` 참고
+3. GitHub 저장소 → **Actions** 탭 → **Android Release Build** → **Run workflow**
+4. 빌드가 끝나면 그 워크플로 실행 결과 페이지 하단 **Artifacts**에서 `labo-release-aab`를 다운로드 (서명된 `.aab` 파일)
+5. [Google Play Console](https://play.google.com/console)에서 새 앱 등록 → 프로덕션(또는 먼저 비공개 테스트) 트랙에 그 `.aab` 업로드
+6. **Data safety** 섹션 작성 — `STORE_LISTING.md`에 답변 가이드 정리해뒀어요
+7. 개인정보처리방침 URL 등록 — `https://<username>.github.io/labo/privacy-policy.html` (Pages 활성화 필요, 아래 참고)
+8. 스크린샷, 설명 작성 후 심사 제출 (`STORE_LISTING.md`에 붙여넣을 문구 준비돼 있음)
+
+### 로컬 Android Studio로 빌드하려면
+
+1. Android Studio에서 **Build → Generate Signed Bundle** → 전달받은 키스토어 선택 (또는 새로 생성)
 2. `.aab` 파일 생성
-3. [Google Play Console](https://play.google.com/console)에서 새 앱 등록 → 프로덕션(또는 먼저 비공개 테스트) 트랙에 업로드
-4. **Data safety** 섹션 작성 (수집 데이터: 이메일, 이름, 카메라)
-5. 개인정보처리방침 URL 등록 (Play도 필수)
-6. 스크린샷, 설명 작성 후 심사 제출
+3. 이후 단계는 위 3~8번과 동일
 
-## 6. 개인정보처리방침 초안
+## 6. 개인정보처리방침 (완료 — Pages 활성화만 하면 됨)
 
-`PRIVACY_POLICY.md`에 초안을 만들어뒀어요. 내용 검토 후 GitHub Pages나 노션 등에
-호스팅해서 그 URL을 스토어 등록 시 사용하세요.
+`PRIVACY_POLICY.md`(원본)와 `docs/privacy-policy.html`(호스팅용 완성 페이지)이
+이미 준비돼 있어요. 마지막으로 한 번만 켜주세요:
 
-```bash
-# GitHub Pages로 가장 빠르게 호스팅하는 예시
-# 1) 이 저장소의 Settings → Pages → Deploy from a branch 설정
-# 2) PRIVACY_POLICY.md를 index.html로 변환하거나 그대로 두면
-#    https://<username>.github.io/<repo>/PRIVACY_POLICY 형태로 접근 가능
-```
+1. 이 저장소 → **Settings → Pages**
+2. Source: **Deploy from a branch** 선택
+3. Branch: **main**, 폴더: **/docs** 선택 → Save
+4. 몇 분 뒤 `https://<username>.github.io/labo/privacy-policy.html`에서 열림 —
+   브라우저로 직접 열어서 정상 표시되는지 꼭 확인 후 스토어에 등록하세요
 
 ## 7. 버전 올릴 때
 
