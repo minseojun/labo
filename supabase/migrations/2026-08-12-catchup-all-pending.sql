@@ -2,11 +2,14 @@
 -- LABO — 지금까지 밀린 마이그레이션 한 번에 따라잡기
 --
 -- 최근 며칠 사이 마이그레이션 파일이 여러 개(개인 일정/타이머, 모듈 개인 표시,
--- 장비 리마인더+모듈 권한 개방) 나뉘어 있었는데, 이 중 일부만 적용된 상태에서
--- 앱을 쓰면 "장비 사용 시작 버튼 누르면 오류", "모듈 껐다 새로고침하면 도로
--- 켜짐(저장 안 됨)" 같은 문제가 생김 — 앱은 새 컬럼/함수가 있다고 가정하고
--- 호출하는데 DB엔 없거나(컬럼 에러), 함수가 있어도 조건이 안 맞아 조용히
--- 0행만 바뀌고 끝나버리는(에러 없이 실패) 경우들임.
+-- 장비 사용 종료 리마인더) 나뉘어 있었는데, 이 중 일부만 적용된 상태에서 앱을
+-- 쓰면 "장비 사용 시작 버튼 누르면 오류", "모듈 껐다 새로고침하면 도로 켜짐
+-- (저장 안 됨)" 같은 문제가 생김 — 앱은 새 컬럼이 있다고 가정하고 저장을
+-- 시도하는데 DB엔 아직 없어서 컬럼 에러로 실패하는 경우들임.
+--
+-- (모듈 켜고 끄기는 한 차례 더 바뀌어서 지금은 랩 전체 설정이 아니라 완전히
+-- 개인 설정 — profiles.hidden_modules만 있으면 되고, 한때 있었던 labs 테이블
+-- 전용 RPC는 더 이상 앱에서 쓰지 않음)
 --
 -- 이 파일 하나만 실행하면 이전에 뭘 실행했든 안 했든 전부 최신 상태로 맞춰짐
 -- (전부 idempotent — 몇 번을 실행해도 안전). Supabase 대시보드 → SQL Editor →
@@ -68,37 +71,11 @@ create policy "timers_update" on timers for update using (user_id = auth.uid());
 create policy "timers_delete" on timers for delete using (user_id = auth.uid());
 create index if not exists idx_timers_user on timers(user_id);
 
--- ── 2. 모듈 개인별 탭바 표시/숨김 ────────────────────────────────────────
+-- ── 2. 모듈 개인별 탭바 표시/숨김 (지금은 이게 유일한 모듈 on/off 방식) ─────
 alter table profiles add column if not exists hidden_modules text[] not null default '{}';
 
--- ── 3. 장비 사용 종료 리마인더 + 모듈 관리 권한 개방(랩 멤버 전체) ─────────
+-- ── 3. 장비 사용 종료 리마인더 ───────────────────────────────────────────
 alter table equipment add column if not exists in_use_since timestamptz;
-
--- 0행만 바뀌고 에러 없이 끝나던 문제를 막기 위해 FOUND로 명시적 예외를 던지도록
--- plpgsql로 다시 작성 (교체 실행이라 몇 번을 다시 돌려도 안전)
-create or replace function set_lab_enabled_modules(target_lab_id uuid, new_modules text[])
-returns void language plpgsql security definer as $$
-begin
-  update labs set enabled_modules = new_modules
-  where id = target_lab_id and is_lab_member(target_lab_id);
-  if not found then
-    raise exception 'lab not found or not a member of this lab';
-  end if;
-end;
-$$;
-grant execute on function set_lab_enabled_modules(uuid, text[]) to authenticated;
-
-create or replace function set_lab_disabled_tabs(target_lab_id uuid, new_tabs text[])
-returns void language plpgsql security definer as $$
-begin
-  update labs set disabled_tabs = new_tabs
-  where id = target_lab_id and is_lab_member(target_lab_id);
-  if not found then
-    raise exception 'lab not found or not a member of this lab';
-  end if;
-end;
-$$;
-grant execute on function set_lab_disabled_tabs(uuid, text[]) to authenticated;
 
 -- ── realtime 구독 (이미 등록돼 있으면 건너뜀) ─────────────────────────────
 do $$

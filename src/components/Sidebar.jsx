@@ -396,7 +396,7 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate,
                   [Icon.Flask, '장비', 'QR을 스캔해서 사용 시작/종료를 기록해요. 목록에 "n시간째 사용중"이 표시되고, 2시간 넘게 사용중이면 종료를 잊지 않았는지 알려드려요. 장비 상세 화면이나 상단의 QR 인쇄 버튼으로 QR 라벨을 인쇄할 수 있어요.'],
                   [Icon.Timer, '타이머', '실험 타이머를 설정하고 완료되면 알림을 받아요. 서버에 저장되니 새로고침하거나 다른 기기에서 열어도 그대로 이어져요.'],
                   [Icon.Package, '소모품', '시약·소모품 재고 상태를 신호등 색으로 관리해요.'],
-                  ...MODULES.filter(m => isModuleEnabled(labInfo, m.key)).map(m => [m.icon, m.label, m.description]),
+                  ...MODULES.map(m => [m.icon, m.label, m.description]),
                 ].map(([IconComp, t, d], i) => (
                   <div key={`${t}-${i}`} style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
                     <IconComp size={17} strokeWidth={1.6} style={{ color: 'var(--text2)', flexShrink: 0, marginTop: 1 }} />
@@ -407,7 +407,7 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate,
                   </div>
                 ))}
                 <div style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.6, marginTop: 4, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-                  사이드바의 <b>모듈 관리</b>에서 랩에 필요한 모듈을 켜고 끌 수 있어요(구성원 누구나 가능하고 랩 전체에 적용돼요). <b>내 탭바에 보이는 모듈</b>에서는 켜진 모듈 중 내 화면에만 안 보이게 개인적으로 숨길 수 있어요.
+                  사이드바의 <b>모듈 관리</b>에서 탭바에 뭘 보이게 할지 골라요 — 나에게만 적용되는 개인 설정이라, 여기서 껐다 켜도 데이터나 다른 구성원의 화면에는 영향이 없어요.
                 </div>
               </>
             )}
