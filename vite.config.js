@@ -14,7 +14,11 @@ export default defineConfig({
         description: '연구실 일정, 잡무 분담, 장비, 소모품을 한곳에서 관리해요.',
         lang: 'ko',
         theme_color: '#1F9D6B',
-        background_color: '#F5F2EA',
+        // iOS "홈 화면에 추가" standalone 모드는 하단 세이프에어리어(홈 인디케이터) 부분을
+        // 페이지가 아니라 OS 셸이 직접 그리는데, 그 색을 이 manifest의 background_color로
+        // 칠함 — 크림색(--bg)이었을 땐 흰색 탭바 바로 아래에 이질적인 띠로 보였음.
+        // 탭바 배경(rgba(255,255,255,0.92) 블러)과 거의 같은 흰색으로 맞춰서 이어져 보이게 함
+        background_color: '#FDFCFA',
         display: 'standalone',
         start_url: '/',
         scope: '/',
