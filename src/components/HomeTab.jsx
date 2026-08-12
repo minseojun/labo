@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react'
 import { DAYS } from '../mockData'
 import { fmtDate, formatTime, computeSchedule, scheduleAssigneeOn, scheduleOccurrences } from '../utils'
 import { Icon } from './Icon'
+import { Avatar } from './Avatar'
 
 const typeStyle = {
   lab:  { bar: 'var(--green)',  chip: 'chip-green',  label: '공용' },
@@ -143,10 +144,10 @@ export default function HomeTab({ user, schedules, schedulesHook, supplies, noti
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <div style={{
-            width: 48, height: 48, borderRadius: '50%',
+            width: 48, height: 48, borderRadius: '50%', overflow: 'hidden',
             background: 'rgba(255,255,255,0.16)', border: '1px solid rgba(255,255,255,0.25)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0,
-          }}>{user.avatar || user.name?.slice(-1)}</div>
+          }}><Avatar value={user.avatar} fallback={user.name?.slice(-1)} /></div>
 
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 13, opacity: .8, marginBottom: 3 }}>{greeting}</div>
