@@ -12,7 +12,7 @@ import Sidebar from './components/Sidebar'
 import ErrorBoundary from './components/ErrorBoundary'
 import { Avatar } from './components/Avatar'
 import { Icon } from './components/Icon'
-import { useCollection, useMembers, useTimers } from './hooks/useSupabase'
+import { useLabRealtime } from './hooks/useSupabase'
 import ToastContainer from './components/ToastContainer'
 import { toast } from './utils/toast'
 import { haptic } from './utils/haptics'
@@ -62,10 +62,6 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('home')
   const [showSidebar, setShowSidebar] = useState(false)
   const [scrolled, setScrolled] = useState(false)
-
-  // 타이머 — App 레벨에서 관리해서 탭 전환해도 유지, 서버에도 동기화돼서 기기를
-  // 바꾸거나 새로고침해도 안 사라짐
-  const { timers, addTimer, updateTimer, deleteTimer } = useTimers(user?.id, user?.labId)
 
   // 안드로이드 하드웨어 뒤로가기 — 사이드바 닫기 > 홈 탭으로 > 앱 종료 순으로 처리
   useEffect(() => {
@@ -148,11 +144,13 @@ export default function App() {
     ...TABS.filter(t => t.id === 'home' || !hiddenTabs.includes(t.id)),
     ...visibleModuleTabs.map(m => ({ id: m.key, icon: m.icon, label: m.label })),
   ]
-  const schedulesHook = useCollection(labId, 'schedules', 'date')
-  const equipmentHook = useCollection(labId, 'equipment', 'created_at')
-  const suppliesHook  = useCollection(labId, 'supplies', 'created_at')
-  const noticesHook   = useCollection(labId, 'notices', 'created_at')
-  const members       = useMembers(labId)
+  // 일정/장비/소모품/공지/멤버/타이머를 채널 하나로 묶어서 실시간 구독 —
+  // App 레벨에서 관리해서 탭 전환해도 유지되고, 타이머는 서버에도 동기화돼서
+  // 기기를 바꾸거나 새로고침해도 안 사라짐
+  const {
+    schedulesHook, equipmentHook, suppliesHook, noticesHook, members,
+    timers, addTimer, updateTimer, deleteTimer,
+  } = useLabRealtime(user?.id, labId)
 
   if (authLoading) return <LoadingScreen />
   if (!user) return <AuthScreen onLogin={setUser} />
