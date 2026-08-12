@@ -14,9 +14,10 @@ export default function CalendarSection({ labId, schedules, schedulesHook, notic
   const [newNotice, setNewNotice] = useState('')
   const [showHidden, setShowHidden] = useState(false)
   const [quickAdd, setQuickAdd] = useState('')
-  const [form, setForm] = useState({ name: '', date: fmtDate(today), time: '10:00', type: 'lab', assignee: '전체' })
+  const [form, setForm] = useState({ name: '', date: fmtDate(today), time: '10:00', type: 'lab', assignee: '전체', visible: false })
 
   const uniqueMembers = members.filter((m, i, arr) => arr.findIndex(x => x.id === m.id) === i)
+  const resolveOwnerId = (name) => uniqueMembers.find(m => m.name === name)?.id || null
   const weekDates = getWeekDates(baseDate)
   const nonTaskSchedules = schedules.filter(s => s.type !== 'task')
   const filtered = nonTaskSchedules
@@ -27,10 +28,18 @@ export default function CalendarSection({ labId, schedules, schedulesHook, notic
     const name = form.name.trim()
     if (!name) { toast.error('일정 이름을 입력해주세요.'); return }
     if (name.length > 100) { toast.error('이름은 100자 이내로 입력해주세요.'); return }
+    if (form.type === 'mine' && !resolveOwnerId(form.assignee)) {
+      toast.error('개인 일정은 담당자를 특정 인원으로 지정해주세요.')
+      return
+    }
     try {
-      await schedulesHook.add({ ...form, name })
+      await schedulesHook.add({
+        ...form, name,
+        userId: form.type === 'mine' ? resolveOwnerId(form.assignee) : null,
+        visible: form.type === 'mine' ? form.visible : false,
+      })
       setShowAdd(false)
-      setForm({ name: '', date: selDate, time: '10:00', type: 'lab', assignee: '전체' })
+      setForm({ name: '', date: selDate, time: '10:00', type: 'lab', assignee: '전체', visible: false })
     } catch (e) {
       // error shown by hook
     }
@@ -40,10 +49,16 @@ export default function CalendarSection({ labId, schedules, schedulesHook, notic
     if (!showEdit) return
     const name = showEdit.name?.trim()
     if (!name) { toast.error('일정 이름을 입력해주세요.'); return }
+    if (showEdit.type === 'mine' && !resolveOwnerId(showEdit.assignee)) {
+      toast.error('개인 일정은 담당자를 특정 인원으로 지정해주세요.')
+      return
+    }
     try {
       await schedulesHook.update(showEdit.id, {
         name, date: showEdit.date,
-        time: showEdit.time, type: showEdit.type, assignee: showEdit.assignee
+        time: showEdit.time, type: showEdit.type, assignee: showEdit.assignee,
+        userId: showEdit.type === 'mine' ? resolveOwnerId(showEdit.assignee) : null,
+        visible: showEdit.type === 'mine' ? !!showEdit.visible : false,
       })
       setShowEdit(null)
     } catch (e) {
@@ -77,7 +92,8 @@ export default function CalendarSection({ labId, schedules, schedulesHook, notic
     const name = quickAdd.trim()
     if (!name) return
     try {
-      await schedulesHook.add({ name, type: 'mine', assignee: user.name, date: selDate, time: '', done: false })
+      // 기본 비공개 — 나만 보이고, 수정 화면에서 "팀 공개"로 바꿀 수 있음
+      await schedulesHook.add({ name, type: 'mine', assignee: user.name, userId: user.id, visible: false, date: selDate, time: '', done: false })
       setQuickAdd('')
     } catch (e) {
       // error shown by hook
@@ -129,7 +145,7 @@ export default function CalendarSection({ labId, schedules, schedulesHook, notic
               <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>{s.time && `${s.time} · `}{s.assignee}</div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              {s.type === 'mine' && <span className="chip chip-purple">개인</span>}
+              {s.type === 'mine' && <span className="chip chip-purple">{s.visible ? '개인·공개' : '개인·비공개'}</span>}
               {s.type === 'lab' && <span className="chip chip-green">공용</span>}
               <button onClick={e => deleteSchedule(s, e)}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text2)', fontSize: 16, padding: '2px 6px' }}>×</button>
@@ -219,6 +235,20 @@ export default function CalendarSection({ labId, schedules, schedulesHook, notic
                 {uniqueMembers.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
               </select>
             </div>
+            {form.type === 'mine' && (
+              <div className="form-group">
+                <label className="form-label">공개 범위</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {[[false, '비공개', '나만 볼 수 있어요'], [true, '팀 공개', '연구실 전체가 볼 수 있어요']].map(([v, l, sub]) => (
+                    <button key={String(v)} onClick={() => setForm(p => ({ ...p, visible: v }))}
+                      style={{ flex: 1, padding: '10px', border: `2px solid ${form.visible === v ? 'var(--green)' : 'var(--border)'}`, borderRadius: 10, background: form.visible === v ? 'var(--green-light)' : 'var(--card)', cursor: 'pointer', textAlign: 'left' }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: form.visible === v ? 'var(--green)' : 'var(--text2)' }}>{l}</div>
+                      <div style={{ fontSize: 10.5, color: 'var(--text2)', marginTop: 2 }}>{sub}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <button className="btn-primary" onClick={addSchedule}>추가하기</button>
           </div>
         </div>
@@ -259,6 +289,20 @@ export default function CalendarSection({ labId, schedules, schedulesHook, notic
                 {uniqueMembers.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
               </select>
             </div>
+            {showEdit.type === 'mine' && (
+              <div className="form-group">
+                <label className="form-label">공개 범위</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {[[false, '비공개', '나만 볼 수 있어요'], [true, '팀 공개', '연구실 전체가 볼 수 있어요']].map(([v, l, sub]) => (
+                    <button key={String(v)} onClick={() => setShowEdit(p => ({ ...p, visible: v }))}
+                      style={{ flex: 1, padding: '10px', border: `2px solid ${!!showEdit.visible === v ? 'var(--green)' : 'var(--border)'}`, borderRadius: 10, background: !!showEdit.visible === v ? 'var(--green-light)' : 'var(--card)', cursor: 'pointer', textAlign: 'left' }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: !!showEdit.visible === v ? 'var(--green)' : 'var(--text2)' }}>{l}</div>
+                      <div style={{ fontSize: 10.5, color: 'var(--text2)', marginTop: 2 }}>{sub}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <button className="btn-primary" onClick={saveEdit}>저장하기</button>
           </div>
         </div>
