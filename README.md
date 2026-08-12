@@ -11,12 +11,23 @@ npm run dev
 
 ## Supabase 연동
 
+스키마는 이제 [Supabase CLI](https://supabase.com/docs/guides/local-development/cli/getting-started)의 마이그레이션 기능으로 관리해요. SQL Editor에 뭘 실행했는지 사람이 기억할 필요 없이, CLI가 원격 DB에 어떤 마이그레이션이 이미 적용됐는지 직접 추적해줘요.
+
 1. [Supabase](https://supabase.com) 에서 새 프로젝트 생성 (Northeast Asia (Seoul) 리전 추천)
 2. Authentication → Providers → Email → **Confirm email 끄기** (이메일 인증 없이 바로 로그인되는 구조라 꼭 꺼야 해요)
-3. SQL Editor 에 `supabase/schema.sql` 전체 내용을 붙여넣고 실행 (테이블 + RLS 정책 + realtime 설정이 한 번에 생성됨)
-   - 이미 프로젝트를 만들어서 `schema.sql`을 예전에 한 번 실행했다면, 그걸 다시 통째로 돌리면 기존 테이블 때문에 에러가 나요. 그 이후 새로 생긴 기능은 `supabase/migrations/` 안의 파일들을 (파일명 순서대로, 아직 안 돌린 것만) SQL Editor에 붙여넣고 실행하면 돼요.
-4. Project Settings → API 에서 **Project URL**, **anon public key** 복사
-5. 루트에 `.env.local` 파일을 만들고 아래처럼 채우기 (`.env.example` 참고)
+3. CLI 설치 후 프로젝트 연결:
+   ```bash
+   npx supabase login
+   npx supabase link --project-ref <프로젝트 ref>   # Project Settings → General 에서 확인
+   ```
+4. 마이그레이션 적용:
+   ```bash
+   npx supabase db push
+   ```
+   `supabase/migrations/` 안의 파일들이 순서대로 원격 DB에 적용돼요. 이미 일부/전부 적용된 프로젝트에 다시 실행해도 안전해요(모든 마이그레이션이 idempotent하게 작성돼 있음).
+5. 앞으로 스키마를 바꿀 땐 `npx supabase migration new <이름>`으로 새 파일을 만들고, 다 쓴 뒤 `npx supabase db push`로 반영하세요. `supabase/migrations/`의 기존 파일은 고치지 마세요 — 이미 적용된 마이그레이션을 사후에 수정하면 CLI의 추적 상태와 실제 원격 DB 상태가 어긋나요.
+6. Project Settings → API 에서 **Project URL**, **anon public key** 복사
+7. 루트에 `.env.local` 파일을 만들고 아래처럼 채우기 (`.env.example` 참고)
    ```
    VITE_SUPABASE_URL=https://xxxxxxxxxxxx.supabase.co
    VITE_SUPABASE_ANON_KEY=your-anon-public-key
@@ -45,7 +56,7 @@ src/
     GpuReservationScreen.jsx      # [모듈] Dry Lab · GPU 서버 예약
     DatasetScreen.jsx             # [모듈] Dry Lab · 데이터셋 관리
     OnboardingChecklistScreen.jsx # [모듈] Lab Ops · 온보딩 체크리스트
-  modules.js          # 모듈 레지스트리 — 랩마다 켜고 끄는 도메인 기능
+  modules.js          # 모듈 레지스트리 — 구성원 각자 탭바에 켜고 끄는 도메인 기능
   supabase.js         # Supabase 클라이언트 (.env.local 필요)
   mockData.js         # 데모 데이터
   utils.js            # 공통 유틸

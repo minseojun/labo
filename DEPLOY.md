@@ -6,7 +6,7 @@ React 웹앱 → Supabase 백엔드 → Capacitor 네이티브 앱까지 전 과
 ## 0. 지금까지 된 것 / 앞으로 직접 하셔야 하는 것
 
 **코드로 이미 준비된 것**
-- Firebase → Supabase 전체 마이그레이션 (`supabase/schema.sql`)
+- Firebase → Supabase 전체 마이그레이션 (`supabase/migrations/`, Supabase CLI로 관리)
 - 계정 탈퇴 기능 (`supabase/functions/delete-account`) — 앱스토어 필수 요건
 - Capacitor iOS/Android 프로젝트 (`ios/`, `android/`)
 - 앱 아이콘 · 스플래시 스크린 (기존 512px 아이콘을 업스케일한 임시본 — 아래 1번 참고)
@@ -14,7 +14,7 @@ React 웹앱 → Supabase 백엔드 → Capacitor 네이티브 앱까지 전 과
 - Safe area / 상태바 / 뒤로가기 버튼 등 네이티브 셸 대응
 
 **직접 하셔야 하는 것** (계정·기기가 필요해서 제가 대신 못 해요)
-1. Supabase 프로젝트 생성 + `supabase/schema.sql` 실행 + `.env.local` 채우기
+1. Supabase 프로젝트 생성 + `npx supabase link` 후 `npx supabase db push` + `.env.local` 채우기
 2. Supabase Edge Function 배포 (`delete-account`)
 3. **1024×1024 고화질 앱 아이콘 준비** — 지금 건 512px를 늘린 거라 스토어 심사용으로는 화질이 아쉬워요
 4. Apple Developer Program 가입 ($99/년) + Mac + Xcode
@@ -40,16 +40,14 @@ npm run cap:sync
 
 `이거 지금 html 웹이야?` 대화에서 안내한 대로:
 1. Supabase 프로젝트 생성 (Confirm email 끄기 필수)
-2. SQL Editor에 `supabase/schema.sql` 실행
+2. `npx supabase link --project-ref <프로젝트-ref>` 후 `npx supabase db push`
 3. `.env.local`에 URL/anon key 채우기
 
 ### Edge Function 배포 (계정 탈퇴용, 필수)
 
+이미 위에서 `supabase link`를 했다면 바로:
 ```bash
-npm install -g supabase
-supabase login
-supabase link --project-ref <프로젝트-ref>   # Project Settings → General에서 확인
-supabase functions deploy delete-account
+npx supabase functions deploy delete-account
 ```
 
 이 함수는 `SUPABASE_SERVICE_ROLE_KEY`가 필요한데, Supabase가 배포 시 자동으로
