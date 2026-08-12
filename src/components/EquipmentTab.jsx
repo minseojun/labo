@@ -317,13 +317,19 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
         inUseSince,
       })
       // 사용 이력은 equipment_logs 별도 테이블에 쌓음 — equipment 행 안에 배열로
-      // 넣으면 오래 쓸수록 그 행 자체가 끝없이 커짐
+      // 넣으면 오래 쓸수록 그 행 자체가 끝없이 커짐.
+      // 이 insert가 실패해도(예: 마이그레이션이 아직 배포 전이라 테이블이 없음)
+      // 위 상태 변경(equipmentHook.update)은 이미 성공했으니 조용히 콘솔에만
+      // 남기면 사용자는 "왜 이력이 안 쌓이지"를 영영 알 방법이 없음 — 눈에 보이게 알림
       const { error: logError } = await supabase.from('equipment_logs').insert({
         equipment_id: eq.id, lab_id: labId,
         user_name: user.name, action: isUsing ? '사용 종료' : '사용 시작',
         memo: isUsing ? (memo || null) : null,
       })
-      if (logError) console.error(logError)
+      if (logError) {
+        console.error(logError)
+        toast.error('사용 이력 기록에 실패했어요. (상태 변경은 반영됐어요)')
+      }
       setSel(p => p ? { ...p, status: isUsing ? 'available' : 'in-use', lastUser: user.name, inUseSince } : p)
       if (isUsing) setMemo('')
     } catch (e) {
