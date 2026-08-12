@@ -39,6 +39,12 @@ src/
     EquipmentTab.jsx  # 장비 관리 + QR
     TimerTab.jsx      # 멀티 타이머
     SuppliesTab.jsx   # 소모품 신호등
+    HazardLogScreen.jsx           # [모듈] Wet Lab · 위험물 이력
+    FridgeMapScreen.jsx           # [모듈] Wet Lab · 냉장/냉동고 재고맵
+    GpuReservationScreen.jsx      # [모듈] Dry Lab · GPU 서버 예약
+    DatasetScreen.jsx             # [모듈] Dry Lab · 데이터셋 관리
+    OnboardingChecklistScreen.jsx # [모듈] Lab Ops · 온보딩 체크리스트
+  modules.js          # 모듈 레지스트리 — 랩마다 켜고 끄는 도메인 기능
   supabase.js         # Supabase 클라이언트 (.env.local 필요)
   mockData.js         # 데모 데이터
   utils.js            # 공통 유틸

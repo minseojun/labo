@@ -32,4 +32,8 @@ export const Icon = {
   Refresh: (p) => <Base {...p}><path d="M4.5 12a7.5 7.5 0 0 1 12.6-5.4M19.5 12a7.5 7.5 0 0 1-12.6 5.4" /><path d="M17.5 3.5v3.6h-3.6M6.5 20.5v-3.6h3.6" /></Base>,
   Key: (p) => <Base {...p}><circle cx="8" cy="15" r="4" /><path d="M11 12 19 4M16 4h4v4M13.5 9.5l2.5 2.5" /></Base>,
   Building: (p) => <Base {...p}><rect x="5" y="3.5" width="14" height="17" rx="1.5" /><path d="M9 8h1M14 8h1M9 12h1M14 12h1M9 16h1M14 16h1" /></Base>,
+  Server: (p) => <Base {...p}><rect x="4" y="4" width="16" height="6.5" rx="1.5" /><rect x="4" y="13.5" width="16" height="6.5" rx="1.5" /><path d="M7.5 7.2h.01M7.5 16.7h.01" /></Base>,
+  Database: (p) => <Base {...p}><path d="M4.5 6c0-1.4 3.4-2.5 7.5-2.5s7.5 1.1 7.5 2.5-3.4 2.5-7.5 2.5-7.5-1.1-7.5-2.5Z" /><path d="M4.5 6v12c0 1.4 3.4 2.5 7.5 2.5s7.5-1.1 7.5-2.5V6" /><path d="M4.5 12c0 1.4 3.4 2.5 7.5 2.5s7.5-1.1 7.5-2.5" /></Base>,
+  Snowflake: (p) => <Base {...p}><path d="M12 2.5v19M4.5 7.2l15 9.6M4.5 16.8l15-9.6" /><path d="M8 4.7 12 7l4-2.3M8 19.3 12 17l4 2.3M4.8 9.8 7.3 12l-2.5 2.2M19.2 9.8 16.7 12l2.5 2.2" /></Base>,
+  ClipboardCheck: (p) => <Base {...p}><rect x="5.5" y="4.5" width="13" height="17" rx="2.2" /><path d="M9 4.5v-.7A1.3 1.3 0 0 1 10.3 2.5h3.4A1.3 1.3 0 0 1 15 3.8v.7" /><path d="M9 13.3 11 15.3 15.2 10.7" /></Base>,
 }
