@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useCollection } from '../hooks/useSupabase'
 import { toast } from '../utils/toast'
 import { Icon } from './Icon'
+import { Avatar } from './Avatar'
 
 // 교수가 빈 화면에서부터 항목을 다 적지 않아도 되도록 주는 기본 온보딩 예시 —
 // "예시로 시작하기"를 누르면 그대로 등록되고, 이후엔 보통 체크리스트 항목처럼 수정·삭제 가능
@@ -137,8 +138,8 @@ export default function OnboardingChecklistScreen({ labId, user, members = [] })
                 const doneCount = progressFor(m.id).length
                 return (
                   <div key={m.id} className="equip-card" onClick={() => setViewMember(m)}>
-                    <div className="equip-icon" style={{ background: 'var(--green-light)', color: 'var(--green)', fontSize: 16, fontWeight: 600 }}>
-                      {m.avatar || m.name?.slice(-1)}
+                    <div className="equip-icon" style={{ borderRadius: '50%', overflow: 'hidden', background: 'var(--green-light)', color: 'var(--green)', fontSize: 16, fontWeight: 600 }}>
+                      <Avatar value={m.avatar} fallback={m.name?.slice(-1)} />
                     </div>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 600, fontSize: 14 }}>{m.name}</div>

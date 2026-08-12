@@ -1,8 +1,9 @@
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import { supabase } from '../supabase'
 import { toast } from '../utils/toast'
 import { haptic } from '../utils/haptics'
 import { Icon } from './Icon'
+import { Avatar, isImageAvatar } from './Avatar'
 import { MODULES, CORE_TABS, isModuleEnabled } from '../modules'
 
 const AVATARS = ['🧑‍🔬','👩‍🔬','👨‍🔬','🧑‍💻','👩‍💻','👨‍💻','🧑‍🎓','👩‍🎓','👨‍🎓','🦊','🐧','🐻','🌱','⚗️','🔬','🧪','💡','🚀']
@@ -59,6 +60,8 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate,
   const [managingMember, setManagingMember] = useState(null)
   const [showInfo, setShowInfo] = useState(null)
   const [modulesOpen, setModulesOpen] = useState(false)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const fileInputRef = useRef(null)
   const [notifPermission, setNotifPermission] = useState(
     typeof Notification !== 'undefined' ? Notification.permission : 'unsupported'
   )
@@ -67,6 +70,28 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate,
     if (typeof Notification === 'undefined') return
     const result = await Notification.requestPermission()
     setNotifPermission(result)
+  }
+
+  const handleAvatarFile = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    if (!file.type.startsWith('image/')) { toast.error('이미지 파일만 업로드할 수 있어요.'); return }
+    if (file.size > 5 * 1024 * 1024) { toast.error('5MB 이하 이미지만 업로드할 수 있어요.'); return }
+    setUploadingAvatar(true)
+    try {
+      const ext = file.name.split('.').pop() || 'jpg'
+      const path = `${user.id}/${Date.now()}.${ext}`
+      const { error: upErr } = await supabase.storage.from('avatars').upload(path, file, { upsert: true, contentType: file.type })
+      if (upErr) throw upErr
+      const { data } = supabase.storage.from('avatars').getPublicUrl(path)
+      setSelAvatar(data.publicUrl)
+      toast.success('사진을 올렸어요. 저장을 눌러 적용하세요')
+    } catch (err) {
+      console.error(err)
+      toast.error('업로드에 실패했어요. Storage 설정을 확인해주세요.')
+    }
+    setUploadingAvatar(false)
   }
 
   const uniqueMembers = members.filter((m, i, arr) => arr.findIndex(x => x.id === m.id) === i)
@@ -168,7 +193,9 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate,
         {/* 헤더 */}
         <div style={{ padding: 'calc(48px + env(safe-area-inset-top, 0px)) 20px 20px', background: 'var(--green)', color: '#fff', position: 'relative' }}>
           <button onClick={onClose} style={{ position: 'absolute', top: 'calc(16px + env(safe-area-inset-top, 0px))', right: 16, background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', width: 32, height: 32, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icon.X size={16} strokeWidth={2} /></button>
-          <div style={{ width: 68, height: 68, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', border: '2px solid rgba(255,255,255,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 34, marginBottom: 12 }}>{avatar}</div>
+          <div style={{ width: 68, height: 68, borderRadius: '50%', overflow: 'hidden', background: 'rgba(255,255,255,0.2)', border: '2px solid rgba(255,255,255,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 34, marginBottom: 12 }}>
+            <Avatar value={avatar} fallback={user.name?.slice(-1)} />
+          </div>
           {editing ? (
             <input value={newName} onChange={e => setNewName(e.target.value)} style={{ fontSize: 18, fontWeight: 600, color: '#fff', background: 'rgba(255,255,255,0.15)', border: '1.5px solid rgba(255,255,255,0.5)', borderRadius: 8, padding: '4px 10px', width: '100%', outline: 'none', fontFamily: 'inherit', marginBottom: 4 }} onKeyDown={e => e.key === 'Enter' && handleSave()} autoFocus />
           ) : (
@@ -184,7 +211,25 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate,
         {/* 프로필 편집 */}
         {editing && (
           <div style={{ padding: '16px 20px', background: 'var(--card)', borderBottom: '1px solid var(--border)' }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text2)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: .6 }}>아바타 선택</div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text2)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: .6 }}>프로필 사진</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+              <div style={{ width: 56, height: 56, borderRadius: '50%', overflow: 'hidden', background: 'var(--green-light)', border: '1px solid #c8ecd9', color: 'var(--green)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, flexShrink: 0 }}>
+                <Avatar value={selAvatar} fallback={newName?.slice(-1)} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <button onClick={() => fileInputRef.current?.click()} disabled={uploadingAvatar}
+                  style={{ padding: '7px 14px', border: '1px solid var(--border)', borderRadius: 20, background: 'var(--card)', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>
+                  {uploadingAvatar ? '업로드 중...' : '사진 업로드'}
+                </button>
+                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleAvatarFile} style={{ display: 'none' }} />
+                {isImageAvatar(selAvatar) && (
+                  <button onClick={() => setSelAvatar('🧑‍🔬')} style={{ padding: '2px 4px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--text2)', textAlign: 'left' }}>
+                    사진 제거하고 이모지로
+                  </button>
+                )}
+              </div>
+            </div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text2)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: .6 }}>또는 이모지 선택</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
               {AVATARS.map(av => (
                 <button key={av} onClick={() => setSelAvatar(av)} style={{ width: 40, height: 40, borderRadius: '50%', fontSize: 20, border: `2px solid ${selAvatar === av ? 'var(--green)' : 'var(--border)'}`, background: selAvatar === av ? 'var(--green-light)' : 'var(--card)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{av}</button>
@@ -217,8 +262,8 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate,
             {uniqueMembers.map((m, i) => (
               <GroupRow key={m.id} last={i === uniqueMembers.length - 1}
                 onClick={isAdmin && m.id !== user.id ? () => setManagingMember(m) : undefined}>
-                <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--green-light)', border: '1px solid #c8ecd9', color: 'var(--green)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: m.avatar ? 18 : 12, fontWeight: 600, flexShrink: 0 }}>
-                  {m.avatar || m.name?.slice(-1)}
+                <div style={{ width: 34, height: 34, borderRadius: '50%', overflow: 'hidden', background: 'var(--green-light)', border: '1px solid #c8ecd9', color: 'var(--green)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: m.avatar ? 18 : 12, fontWeight: 600, flexShrink: 0 }}>
+                  <Avatar value={m.avatar} fallback={m.name?.slice(-1)} />
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13, fontWeight: 500 }}>
@@ -302,8 +347,8 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate,
           <div style={{ background: 'var(--card)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 320, padding: 20, position: 'relative', zIndex: 1, animation: 'slideUp .25s ease' }}>
             <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--border)', margin: '0 auto 16px' }} />
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-              <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--green-light)', border: '1px solid #c8ecd9', color: 'var(--green)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: managingMember.avatar ? 26 : 16, fontWeight: 600 }}>
-                {managingMember.avatar || managingMember.name?.slice(-1)}
+              <div style={{ width: 48, height: 48, borderRadius: '50%', overflow: 'hidden', background: 'var(--green-light)', border: '1px solid #c8ecd9', color: 'var(--green)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: managingMember.avatar ? 26 : 16, fontWeight: 600 }}>
+                <Avatar value={managingMember.avatar} fallback={managingMember.name?.slice(-1)} />
               </div>
               <div>
                 <div style={{ fontWeight: 600, fontSize: 17 }}>{managingMember.name}</div>

@@ -10,6 +10,7 @@ import TimerTab from './components/TimerTab'
 import SuppliesTab from './components/SuppliesTab'
 import Sidebar from './components/Sidebar'
 import ErrorBoundary from './components/ErrorBoundary'
+import { Avatar } from './components/Avatar'
 import { Icon } from './components/Icon'
 import { useCollection, useMembers } from './hooks/useSupabase'
 import ToastContainer from './components/ToastContainer'
@@ -250,14 +251,14 @@ export default function App() {
           )}
         </div>
         <button onClick={() => { haptic.light(); setShowSidebar(true) }} style={{
-          width: 36, height: 36, borderRadius: '50%',
+          width: 36, height: 36, borderRadius: '50%', overflow: 'hidden',
           background: 'var(--green-light)',
           border: '1px solid var(--border)',
           color: 'var(--green)', cursor: 'pointer',
           fontWeight: 650, fontSize: 16,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          {user.avatar || user.name?.slice(-1)}
+          <Avatar value={user.avatar} fallback={user.name?.slice(-1)} />
         </button>
       </div>
 

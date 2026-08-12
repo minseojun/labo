@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../supabase'
 import { toCamelRow } from '../../hooks/useSupabase'
 import { toast } from '../../utils/toast'
+import { Avatar } from '../Avatar'
 
 export default function NoticeComments({ labId, noticeId, user }) {
   const [comments, setComments] = useState([])
@@ -65,8 +66,8 @@ export default function NoticeComments({ labId, noticeId, user }) {
           {comments.map(c => (
             <div key={c.id} style={{ marginBottom: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-                <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text2)', fontSize: c.avatar ? 14 : 10, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  {c.avatar || c.author?.slice(-1)}
+                <div style={{ width: 24, height: 24, borderRadius: '50%', overflow: 'hidden', background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text2)', fontSize: c.avatar ? 14 : 10, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Avatar value={c.avatar} fallback={c.author?.slice(-1)} />
                 </div>
                 <span style={{ fontSize: 12, fontWeight: 600 }}>{c.author}</span>
                 <span style={{ fontSize: 10, color: 'var(--text2)' }}>{c.role}</span>
