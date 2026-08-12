@@ -145,11 +145,15 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate,
     }
   }
 
+  // 모듈 켜고 끄기는 이제 교수 전용이 아니라 랩 멤버 전체가 할 수 있음 — labs
+  // 테이블 자체의 update 권한은 이름/초대코드 등도 있어 여전히 교수 전용이라,
+  // enabled_modules 컬럼만 딱 바꿔주는 RPC(set_lab_enabled_modules)를 대신 씀
   const handleToggleModule = async (key, enabled) => {
     const current = labInfo?.enabledModules || []
     const next = enabled ? [...new Set([...current, key])] : current.filter(k => k !== key)
     try {
-      await supabase.from('labs').update({ enabled_modules: next }).eq('id', user.labId)
+      const { error } = await supabase.rpc('set_lab_enabled_modules', { target_lab_id: user.labId, new_modules: next })
+      if (error) throw error
       onLabUpdate({ ...labInfo, enabledModules: next })
       toast.success(enabled ? '모듈을 켰어요' : '모듈을 껐어요')
     } catch (e) {
@@ -158,12 +162,14 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate,
     }
   }
 
-  // disabledTabs는 블랙리스트(기본 전부 켜짐) — 탭 켜기=배열에서 빼기, 끄기=배열에 넣기
+  // disabledTabs는 블랙리스트(기본 전부 켜짐) — 탭 켜기=배열에서 빼기, 끄기=배열에 넣기.
+  // 이것도 위와 같은 이유로 전용 RPC(set_lab_disabled_tabs)를 씀
   const handleToggleTab = async (id, enabled) => {
     const current = labInfo?.disabledTabs || []
     const next = enabled ? current.filter(k => k !== id) : [...new Set([...current, id])]
     try {
-      await supabase.from('labs').update({ disabled_tabs: next }).eq('id', user.labId)
+      const { error } = await supabase.rpc('set_lab_disabled_tabs', { target_lab_id: user.labId, new_tabs: next })
+      if (error) throw error
       onLabUpdate({ ...labInfo, disabledTabs: next })
       toast.success(enabled ? '탭을 켰어요' : '탭을 껐어요')
     } catch (e) {
@@ -292,8 +298,10 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate,
             ))}
           </SidebarGroup>
 
-          {/* 모듈 관리 (교수 전용) — 기본 탭 + 추가 모듈을 한 목록에서 켜고 끔, 접이식 */}
-          {isAdmin && (() => {
+          {/* 모듈 관리 (구성원 전체) — 기본 탭 + 추가 모듈을 한 목록에서 켜고 끔, 접이식.
+              여기서 켜고 끄는 건 랩 전체에 적용됨(누구나 쓸 수 있음) — "내 탭바에
+              보이는 모듈" 섹션은 이거랑 별개로 나한테만 적용되는 개인 설정임 */}
+          {(() => {
             const toggleItems = [
               ...CORE_TABS.map(t => ({
                 key: t.id, icon: t.icon, label: t.label, description: t.description,
@@ -307,7 +315,7 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate,
               })),
             ]
             return (
-              <SidebarGroup title="모듈 관리" subtitle="필요한 기능만 켜서 화면을 단순하게 만드세요"
+              <SidebarGroup title="모듈 관리" subtitle="랩 전체에 적용돼요 — 필요한 기능만 켜서 화면을 단순하게 만드세요"
                 onHeaderClick={() => setModulesOpen(p => !p)}
                 right={<Icon.ChevronDown size={14} strokeWidth={2} style={{ color: 'var(--text2)', transform: modulesOpen ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }} />}>
                 {modulesOpen ? toggleItems.map((item, i) => (

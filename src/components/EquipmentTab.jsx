@@ -9,6 +9,27 @@ import { Icon } from './Icon'
 const QR_PREFIX = 'LABO-EQUIP:'
 const qrPayload = code => `${QR_PREFIX}${code}`
 
+// 사용 종료를 깜빡했는지 감지하는 기준 — 이보다 오래 in-use 상태면 리마인더 대상
+const FORGOTTEN_USE_THRESHOLD_MS = 2 * 60 * 60 * 1000 // 2시간
+
+function useElapsedSince(iso) {
+  const [, tick] = useState(0)
+  useEffect(() => {
+    if (!iso) return
+    const id = setInterval(() => tick(t => t + 1), 60000) // 1분마다 표시 갱신
+    return () => clearInterval(id)
+  }, [iso])
+  if (!iso) return null
+  return Date.now() - new Date(iso).getTime()
+}
+
+function elapsedLabel(ms) {
+  const h = Math.floor(ms / 3600000)
+  const m = Math.floor((ms % 3600000) / 60000)
+  if (h === 0) return `${m}분째 사용중`
+  return `${h}시간 ${m}분째 사용중`
+}
+
 function StatusChip({ status }) {
   if (status === 'available') return <span className="chip chip-green">가용</span>
   if (status === 'in-use') return <span className="chip chip-red">사용중</span>
@@ -17,6 +38,23 @@ function StatusChip({ status }) {
 
 const ICONS = ['🔬', '⚙️', '💡', '🔧', '🧪', '🖥️', '📡', '⚗️']
 const bgColor = s => s === 'available' ? 'var(--green-light)' : s === 'in-use' ? 'var(--red-light)' : 'var(--yellow-light)'
+
+function EquipmentRow({ eq, onClick }) {
+  const elapsed = useElapsedSince(eq.status === 'in-use' ? eq.inUseSince : null)
+  const forgotten = elapsed !== null && elapsed >= FORGOTTEN_USE_THRESHOLD_MS
+  return (
+    <div className="equip-card" onClick={onClick}>
+      <div className="equip-icon" style={{ background: bgColor(eq.status) }}>{eq.icon || '🔬'}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 600, fontSize: 14 }}>{eq.name}</div>
+        <div style={{ fontSize: 11, color: forgotten ? 'var(--red)' : 'var(--text2)', marginTop: 2, fontWeight: forgotten ? 600 : 400 }}>
+          {elapsed !== null ? `${eq.lastUser} · ${elapsedLabel(elapsed)}` : `코드: ${eq.code} · 최근: ${eq.lastUser}`}
+        </div>
+      </div>
+      <StatusChip status={eq.status} />
+    </div>
+  )
+}
 
 function SkeletonCard() {
   return (
@@ -217,10 +255,29 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
   const [form, setForm] = useState({ name: '', code: '', status: 'available', icon: '🔬' })
 
   const isAdmin = user.role === '교수'
+  const selElapsed = useElapsedSince(sel?.status === 'in-use' ? sel.inUseSince : null)
   const q = query.trim().toLowerCase()
   const filtered = equipment
     .filter(e => filter === 'all' || e.status === filter)
     .filter(e => !q || e.name?.toLowerCase().includes(q) || e.code?.toLowerCase().includes(q))
+
+  // 사용 종료를 깜빡한 것 같으면(2시간 넘게 in-use) 본인에게 하루 한 번만 알려줌 —
+  // 잡무 당번 알림(HomeTab)과 같은 방식으로 날짜별 localStorage 키로 중복 방지
+  useEffect(() => {
+    const now = Date.now()
+    equipment.forEach(eq => {
+      if (eq.status !== 'in-use' || eq.lastUser !== user.name || !eq.inUseSince) return
+      const elapsed = now - new Date(eq.inUseSince).getTime()
+      if (elapsed < FORGOTTEN_USE_THRESHOLD_MS) return
+      const key = `labo-equip-reminder-${eq.id}-${new Date().toISOString().slice(0, 10)}`
+      if (localStorage.getItem(key)) return
+      localStorage.setItem(key, '1')
+      toast.error(`${eq.name} ${elapsedLabel(elapsed)}이에요. 다 쓰셨으면 종료를 눌러주세요.`)
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification('장비 사용 종료 확인', { body: `${eq.name}, 아직 사용 중이신가요?` })
+      }
+    })
+  }, [equipment, user.name])
 
   const toggleUse = async (eq) => {
     const isUsing = eq.status === 'in-use' && eq.lastUser === user.name
@@ -230,13 +287,15 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
       time: new Date().toLocaleString('ko-KR'),
       memo: isUsing ? memo : ''
     }
+    const inUseSince = isUsing ? null : new Date().toISOString()
     try {
       await equipmentHook.update(eq.id, {
         status: isUsing ? 'available' : 'in-use',
         lastUser: user.name,
         logs: [...(eq.logs || []), newLog],
+        inUseSince,
       })
-      setSel(p => p ? { ...p, status: isUsing ? 'available' : 'in-use', lastUser: user.name, logs: [...(p.logs || []), newLog] } : p)
+      setSel(p => p ? { ...p, status: isUsing ? 'available' : 'in-use', lastUser: user.name, logs: [...(p.logs || []), newLog], inUseSince } : p)
       if (isUsing) setMemo('')
     } catch (e) {
       console.error(e)
@@ -272,8 +331,10 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
 
   const setMaintenance = async (eq, status) => {
     try {
-      await equipmentHook.update(eq.id, { status })
-      setSel(p => p ? { ...p, status } : p)
+      // 점검중으로 바뀌거나 점검이 끝나거나, 어느 쪽이든 "사용 시작 시각"은 더 이상
+      // 유효하지 않으니 같이 지움
+      await equipmentHook.update(eq.id, { status, inUseSince: null })
+      setSel(p => p ? { ...p, status, inUseSince: null } : p)
     } catch (e) {
       console.error(e)
       toast.error('상태 변경에 실패했어요.')
@@ -342,14 +403,7 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
         </div>
       ) : (
         filtered.map(eq => (
-          <div key={eq.id} className="equip-card" onClick={() => setSel(eq)}>
-            <div className="equip-icon" style={{ background: bgColor(eq.status) }}>{eq.icon || '🔬'}</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 600, fontSize: 14 }}>{eq.name}</div>
-              <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>코드: {eq.code} · 최근: {eq.lastUser}</div>
-            </div>
-            <StatusChip status={eq.status} />
-          </div>
+          <EquipmentRow key={eq.id} eq={eq} onClick={() => setSel(eq)} />
         ))
       )}
 
@@ -362,6 +416,11 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 600, fontSize: 17 }}>{sel.name}</div>
                 <div style={{ fontSize: 12, color: 'var(--text2)' }}>{sel.code}</div>
+                {selElapsed !== null && (
+                  <div style={{ fontSize: 12, color: selElapsed >= FORGOTTEN_USE_THRESHOLD_MS ? 'var(--red)' : 'var(--text2)', fontWeight: 600, marginTop: 2 }}>
+                    {sel.lastUser} · {elapsedLabel(selElapsed)}
+                  </div>
+                )}
               </div>
               <StatusChip status={sel.status} />
             </div>
