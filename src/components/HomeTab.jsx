@@ -93,7 +93,9 @@ export default function HomeTab({ user, schedules, schedulesHook, supplies, noti
 
   const toggleTodo = async (id, done) => {
     try {
-      await schedulesHook.update(id, { done: !done, doneDate: !done ? todayStr : null })
+      // schedules 테이블엔 done_date 컬럼이 없어서(개인 todos 전용 테이블에만 있음)
+      // 예전엔 여기서 doneDate를 같이 보내는 바람에 매번 업데이트가 실패했음
+      await schedulesHook.update(id, { done: !done })
     } catch (e) {}
   }
 
