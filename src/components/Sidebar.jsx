@@ -4,7 +4,7 @@ import { toast } from '../utils/toast'
 import { haptic } from '../utils/haptics'
 import { Icon } from './Icon'
 import { Avatar, isImageAvatar } from './Avatar'
-import { MODULES, CORE_TABS, isModuleEnabled } from '../modules'
+import { MODULES, CORE_TABS } from '../modules'
 
 const AVATARS = ['🧑‍🔬','👩‍🔬','👨‍🔬','🧑‍💻','👩‍💻','👨‍💻','🧑‍🎓','👩‍🎓','👨‍🎓','🦊','🐧','🐻','🌱','⚗️','🔬','🧪','💡','🚀']
 const ROLES = ['학부인턴','학부연구생','대학원생','교수']
@@ -145,48 +145,15 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate,
     }
   }
 
-  // 모듈 켜고 끄기는 이제 교수 전용이 아니라 랩 멤버 전체가 할 수 있음 — labs
-  // 테이블 자체의 update 권한은 이름/초대코드 등도 있어 여전히 교수 전용이라,
-  // enabled_modules 컬럼만 딱 바꿔주는 RPC(set_lab_enabled_modules)를 대신 씀
-  const handleToggleModule = async (key, enabled) => {
-    const current = labInfo?.enabledModules || []
-    const next = enabled ? [...new Set([...current, key])] : current.filter(k => k !== key)
-    try {
-      const { error } = await supabase.rpc('set_lab_enabled_modules', { target_lab_id: user.labId, new_modules: next })
-      if (error) throw error
-      onLabUpdate({ ...labInfo, enabledModules: next })
-      toast.success(enabled ? '모듈을 켰어요' : '모듈을 껐어요')
-    } catch (e) {
-      console.error(e)
-      toast.error('모듈 설정 변경에 실패했어요.')
-    }
-  }
-
-  // disabledTabs는 블랙리스트(기본 전부 켜짐) — 탭 켜기=배열에서 빼기, 끄기=배열에 넣기.
-  // 이것도 위와 같은 이유로 전용 RPC(set_lab_disabled_tabs)를 씀
-  const handleToggleTab = async (id, enabled) => {
-    const current = labInfo?.disabledTabs || []
-    const next = enabled ? current.filter(k => k !== id) : [...new Set([...current, id])]
-    try {
-      const { error } = await supabase.rpc('set_lab_disabled_tabs', { target_lab_id: user.labId, new_tabs: next })
-      if (error) throw error
-      onLabUpdate({ ...labInfo, disabledTabs: next })
-      toast.success(enabled ? '탭을 켰어요' : '탭을 껐어요')
-    } catch (e) {
-      console.error(e)
-      toast.error('탭 설정 변경에 실패했어요.')
-    }
-  }
-
-  // 랩이 켠 모듈 중에서 "내 탭바에는 안 보이게" 개인적으로 숨김/해제 — 랩 설정이나
-  // 데이터는 전혀 안 건드리고, 본인 프로필에만 저장되는 순수 개인 취향
-  const handleToggleMyModule = async (key, hide) => {
+  // 탭·모듈 표시 여부는 랩 전체가 아니라 각자 자기 탭바에만 적용되는 개인 설정 —
+  // 랩 데이터나 다른 구성원의 화면은 전혀 안 건드리고, 본인 프로필에만 저장됨
+  const handleToggleTab = async (key, hide) => {
     const current = user.hiddenModules || []
     const next = hide ? [...new Set([...current, key])] : current.filter(k => k !== key)
     try {
       await supabase.from('profiles').update({ hidden_modules: next }).eq('id', user.id)
       onUserUpdate({ ...user, hiddenModules: next })
-      toast.success(hide ? '내 화면에서 숨겼어요' : '내 화면에 다시 표시해요')
+      toast.success(hide ? '내 탭바에서 숨겼어요' : '내 탭바에 다시 표시해요')
     } catch (e) {
       console.error(e)
       toast.error('설정 변경에 실패했어요.')
@@ -298,24 +265,23 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate,
             ))}
           </SidebarGroup>
 
-          {/* 모듈 관리 (구성원 전체) — 기본 탭 + 추가 모듈을 한 목록에서 켜고 끔, 접이식.
-              여기서 켜고 끄는 건 랩 전체에 적용됨(누구나 쓸 수 있음) — "내 탭바에
-              보이는 모듈" 섹션은 이거랑 별개로 나한테만 적용되는 개인 설정임 */}
+          {/* 모듈 관리 — 기본 탭 + 추가 모듈을 한 목록에서 켜고 끔, 접이식.
+              전적으로 개인 설정임: 랩 데이터나 다른 구성원의 화면에는 전혀 영향을
+              안 주고, 각자 자기 탭바에 뭘 보이게 할지만 고름 */}
           {(() => {
+            const hidden = user.hiddenModules || []
             const toggleItems = [
               ...CORE_TABS.map(t => ({
                 key: t.id, icon: t.icon, label: t.label, description: t.description,
-                on: !labInfo?.disabledTabs?.includes(t.id),
-                toggle: () => handleToggleTab(t.id, !!labInfo?.disabledTabs?.includes(t.id)),
+                on: !hidden.includes(t.id),
               })),
               ...MODULES.map(m => ({
                 key: m.key, icon: m.icon, label: m.label, description: m.description,
-                on: isModuleEnabled(labInfo, m.key),
-                toggle: () => handleToggleModule(m.key, !isModuleEnabled(labInfo, m.key)),
+                on: !hidden.includes(m.key),
               })),
             ]
             return (
-              <SidebarGroup title="모듈 관리" subtitle="랩 전체에 적용돼요 — 필요한 기능만 켜서 화면을 단순하게 만드세요"
+              <SidebarGroup title="모듈 관리" subtitle="나에게만 적용돼요 — 필요한 기능만 켜서 내 화면을 단순하게 만드세요"
                 onHeaderClick={() => setModulesOpen(p => !p)}
                 right={<Icon.ChevronDown size={14} strokeWidth={2} style={{ color: 'var(--text2)', transform: modulesOpen ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }} />}>
                 {modulesOpen ? toggleItems.map((item, i) => (
@@ -325,38 +291,13 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate,
                       <div style={{ fontSize: 13, fontWeight: 600 }}>{item.label}</div>
                       <div style={{ fontSize: 10.5, color: 'var(--text2)', marginTop: 1 }}>{item.description}</div>
                     </div>
-                    <ToggleSwitch on={item.on} onClick={item.toggle} />
+                    <ToggleSwitch on={item.on} onClick={() => handleToggleTab(item.key, item.on)} />
                   </GroupRow>
                 )) : (
                   <GroupRow last onClick={() => setModulesOpen(true)}>
                     <span style={{ fontSize: 12, color: 'var(--text2)' }}>{toggleItems.filter(m => m.on).length}/{toggleItems.length}개 켜짐 — 눌러서 펼치기</span>
                   </GroupRow>
                 )}
-              </SidebarGroup>
-            )
-          })()}
-
-          {/* 내 화면에 보이는 모듈 (전체 구성원) — 랩이 켠 모듈 중 나한테만 안 보이게
-              숨길 수 있음. 랩 설정이나 다른 사람의 화면, 모듈 데이터는 그대로임 */}
-          {(() => {
-            const labModules = MODULES.filter(m => isModuleEnabled(labInfo, m.key))
-            if (labModules.length === 0) return null
-            const hidden = user.hiddenModules || []
-            return (
-              <SidebarGroup title="내 탭바에 보이는 모듈" subtitle="나에게만 적용돼요 — 데이터는 그대로 유지돼요">
-                {labModules.map((m, i) => {
-                  const on = !hidden.includes(m.key)
-                  return (
-                    <GroupRow key={m.key} last={i === labModules.length - 1}>
-                      <m.icon size={17} strokeWidth={1.7} style={{ color: on ? 'var(--green)' : 'var(--text3)', flexShrink: 0 }} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600 }}>{m.label}</div>
-                        <div style={{ fontSize: 10.5, color: 'var(--text2)', marginTop: 1 }}>{m.description}</div>
-                      </div>
-                      <ToggleSwitch on={on} onClick={() => handleToggleMyModule(m.key, on)} />
-                    </GroupRow>
-                  )
-                })}
               </SidebarGroup>
             )
           })()}

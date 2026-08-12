@@ -5,7 +5,7 @@ import DatasetScreen from './components/DatasetScreen'
 import FridgeMapScreen from './components/FridgeMapScreen'
 import OnboardingChecklistScreen from './components/OnboardingChecklistScreen'
 
-// 기본 탭(홈 제외) — 랩마다 끄고 켤 수 있음. labs.disabled_tabs에 id가 들어가면 꺼짐(기본은 전부 켜짐)
+// 기본 탭(홈 제외) — 각자 자기 탭바에서 개인적으로 끄고 켤 수 있음 (Sidebar의 "모듈 관리" 참고)
 export const CORE_TABS = [
   { id: 'schedule',  icon: Icon.Calendar, label: '일정', description: '캘린더, 공지, 잡무 자동 배정' },
   { id: 'equipment', icon: Icon.Flask,    label: '장비', description: '장비 사용 현황·이력, QR 스캔' },
@@ -13,9 +13,9 @@ export const CORE_TABS = [
   { id: 'supplies',  icon: Icon.Package,  label: '소모품', description: '시약·소모품 재고 신호등' },
 ]
 
-// 도메인 모듈 레지스트리 — 랩마다 필요한 기능만 선택해서 켜는 "블록형 OS"의 확장 부분.
-// 켜지면 기본 탭과 똑같이 하단 탭바에 나타남. 새 모듈을 추가할 땐 여기 항목 하나만 등록하면
-// 사이드바 "모듈 관리" 토글과 탭바에 자동으로 나타남.
+// 도메인 모듈 레지스트리 — 필요한 기능만 골라 쓰는 "블록형 OS"의 확장 부분.
+// 모든 모듈은 항상 존재하고, 각자 자기 탭바에 보일지만 개인적으로 고름(Sidebar "모듈 관리").
+// 새 모듈을 추가할 땐 여기 항목 하나만 등록하면 사이드바 토글과 탭바에 자동으로 나타남.
 export const MODULES = [
   {
     key: 'wet_lab_hazard_log',
@@ -58,7 +58,3 @@ export const MODULES = [
     Screen: OnboardingChecklistScreen,
   },
 ]
-
-export function isModuleEnabled(labInfo, key) {
-  return !!labInfo?.enabledModules?.includes(key)
-}
