@@ -16,7 +16,7 @@ import { useCollection, useMembers, useTimers } from './hooks/useSupabase'
 import ToastContainer from './components/ToastContainer'
 import { toast } from './utils/toast'
 import { haptic } from './utils/haptics'
-import { CORE_TABS, MODULES, isModuleEnabled } from './modules'
+import { CORE_TABS, MODULES } from './modules'
 import './App.css'
 
 const TABS = [{ id: 'home', icon: Icon.Home, label: '홈' }, ...CORE_TABS]
@@ -134,23 +134,18 @@ export default function App() {
     return () => supabase.removeChannel(channel)
   }, [user?.id, user?.labId])
 
-  // 랩 관리자가 이 탭(또는 모듈)을 꺼버렸거나, 본인이 이 모듈을 개인적으로 숨겨뒀는데
-  // 마침 그 화면을 보고 있었다면 홈으로 돌려보냄
+  // 본인이 이 탭(또는 모듈)을 개인적으로 숨겨뒀는데 마침 그 화면을 보고 있었다면 홈으로 돌려보냄
   useEffect(() => {
-    const isDisabledCore = labInfo?.disabledTabs?.includes(activeTab)
-    const moduleMatch = MODULES.find(m => m.key === activeTab)
-    const isDisabledModule = moduleMatch && !isModuleEnabled(labInfo, moduleMatch.key)
-    const isPersonallyHidden = moduleMatch && (user?.hiddenModules || []).includes(activeTab)
-    if (isDisabledCore || isDisabledModule || isPersonallyHidden) setActiveTab('home')
-  }, [labInfo, activeTab, user?.hiddenModules])
+    if (activeTab !== 'home' && (user?.hiddenModules || []).includes(activeTab)) setActiveTab('home')
+  }, [activeTab, user?.hiddenModules])
 
   const labId = user?.labId
-  // 랩이 켠 모듈 중에서, 본인이 개인적으로 숨기지 않은 것만 내 탭바에 보임 —
-  // 데이터/랩 설정은 그대로 두고 "내 화면에 보이는지"만 개인 취향으로 조절
-  const enabledModuleTabs = MODULES.filter(m => isModuleEnabled(labInfo, m.key))
-  const visibleModuleTabs = enabledModuleTabs.filter(m => !(user?.hiddenModules || []).includes(m.key))
+  // 모든 탭·모듈은 항상 존재함 — 각자 자기 탭바에 뭘 보이게 할지만 개인 취향으로 조절
+  // (랩 전체에 적용되는 설정이 아니라 profiles.hidden_modules에 본인만 저장됨)
+  const hiddenTabs = user?.hiddenModules || []
+  const visibleModuleTabs = MODULES.filter(m => !hiddenTabs.includes(m.key))
   const visibleTabs = [
-    ...TABS.filter(t => t.id === 'home' || !labInfo?.disabledTabs?.includes(t.id)),
+    ...TABS.filter(t => t.id === 'home' || !hiddenTabs.includes(t.id)),
     ...visibleModuleTabs.map(m => ({ id: m.key, icon: m.icon, label: m.label })),
   ]
   const schedulesHook = useCollection(labId, 'schedules', 'date')
@@ -198,17 +193,17 @@ export default function App() {
         {activeTab === 'home' && (
           <HomeTab user={user} schedules={schedulesHook.data} schedulesHook={schedulesHook}
             supplies={suppliesHook.data} notices={noticesHook.data} setActiveTab={setActiveTab} timers={timers}
-            disabledTabs={labInfo?.disabledTabs || []} />
+            disabledTabs={hiddenTabs} />
         )}
-        {activeTab === 'schedule' && !labInfo?.disabledTabs?.includes('schedule') && (
+        {activeTab === 'schedule' && !hiddenTabs.includes('schedule') && (
           <ScheduleTab labId={labId} schedules={schedulesHook.data} schedulesHook={schedulesHook}
             notices={noticesHook.data} noticesHook={noticesHook} members={members} user={user} />
         )}
-        {activeTab === 'equipment' && !labInfo?.disabledTabs?.includes('equipment') && (
+        {activeTab === 'equipment' && !hiddenTabs.includes('equipment') && (
           <EquipmentTab labId={labId} equipment={equipmentHook.data} equipmentHook={equipmentHook} user={user} />
         )}
         {/* 타이머탭 — 항상 렌더링, display로 숨김 (언마운트 방지) */}
-        <div style={{ display: activeTab === 'timer' && !labInfo?.disabledTabs?.includes('timer') ? 'block' : 'none' }}>
+        <div style={{ display: activeTab === 'timer' && !hiddenTabs.includes('timer') ? 'block' : 'none' }}>
           <TimerTab
             timers={timers}
             onAdd={addTimer}
@@ -217,7 +212,7 @@ export default function App() {
             equipment={equipmentHook.data}
           />
         </div>
-        {activeTab === 'supplies' && !labInfo?.disabledTabs?.includes('supplies') && (
+        {activeTab === 'supplies' && !hiddenTabs.includes('supplies') && (
           <SuppliesTab labId={labId} supplies={suppliesHook.data} suppliesHook={suppliesHook} user={user} />
         )}
         {visibleModuleTabs.map(m => activeTab === m.key && (
