@@ -213,10 +213,14 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
   const [showBulkQR, setShowBulkQR] = useState(false)
   const [memo, setMemo] = useState('')
   const [filter, setFilter] = useState('all')
+  const [query, setQuery] = useState('')
   const [form, setForm] = useState({ name: '', code: '', status: 'available', icon: '🔬' })
 
   const isAdmin = user.role === '교수'
-  const filtered = equipment.filter(e => filter === 'all' || e.status === filter)
+  const q = query.trim().toLowerCase()
+  const filtered = equipment
+    .filter(e => filter === 'all' || e.status === filter)
+    .filter(e => !q || e.name?.toLowerCase().includes(q) || e.code?.toLowerCase().includes(q))
 
   const toggleUse = async (eq) => {
     const isUsing = eq.status === 'in-use' && eq.lastUser === user.name
@@ -314,6 +318,12 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
         </div>
       </div>
 
+      <div style={{ padding: '0 16px 12px', position: 'relative' }}>
+        <Icon.Search size={15} strokeWidth={2} style={{ position: 'absolute', left: 30, top: '50%', transform: 'translateY(-50%)', color: 'var(--text3)', pointerEvents: 'none' }} />
+        <input className="form-input" style={{ paddingLeft: 34 }} value={query} onChange={e => setQuery(e.target.value)}
+          placeholder="장비 이름, 코드로 검색" />
+      </div>
+
       <div className="filter-row">
         {[['all', '전체'], ['available', '가용'], ['in-use', '사용중'], ['maintenance', '점검중']].map(([v, l]) => (
           <div key={v} className={`filter-chip${filter === v ? ' active' : ''}`} onClick={() => setFilter(v)}>{l}</div>
@@ -327,8 +337,8 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
       ) : filtered.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text2)' }}>
           <Icon.Flask size={30} strokeWidth={1.4} style={{ marginBottom: 12, opacity: .5 }} />
-          <div style={{ fontWeight: 500 }}>등록된 장비가 없습니다</div>
-          {isAdmin && <div style={{ fontSize: 12, marginTop: 4 }}>+ 추가 버튼으로 장비를 등록하세요</div>}
+          <div style={{ fontWeight: 500 }}>{q ? '검색 결과가 없습니다' : '등록된 장비가 없습니다'}</div>
+          {!q && isAdmin && <div style={{ fontSize: 12, marginTop: 4 }}>+ 추가 버튼으로 장비를 등록하세요</div>}
         </div>
       ) : (
         filtered.map(eq => (

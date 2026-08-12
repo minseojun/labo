@@ -19,6 +19,7 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
   const [showAdd, setShowAdd] = useState(false)
   const [form, setForm] = useState({ name: '', spec: '', status: 'green' })
   const [sel, setSel] = useState(null)
+  const [query, setQuery] = useState('')
 
   const isAdmin = user.role === '교수'
   const canEdit = user.role === '교수' || user.role === '대학원생'
@@ -66,6 +67,9 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
   const yellow = supplies.filter(s => s.status === 'yellow').length
   const red = supplies.filter(s => s.status === 'red').length
 
+  const q = query.trim().toLowerCase()
+  const filtered = !q ? supplies : supplies.filter(s => s.name?.toLowerCase().includes(q) || s.spec?.toLowerCase().includes(q))
+
   return (
     <div>
       <div className="page-header">
@@ -101,18 +105,26 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
         </div>
       )}
 
+      {supplies.length > 0 && (
+        <div style={{ padding: '0 16px 12px', position: 'relative' }}>
+          <Icon.Search size={15} strokeWidth={2} style={{ position: 'absolute', left: 30, top: '50%', transform: 'translateY(-50%)', color: 'var(--text3)', pointerEvents: 'none' }} />
+          <input className="form-input" style={{ paddingLeft: 34 }} value={query} onChange={e => setQuery(e.target.value)}
+            placeholder="품목 이름, 규격으로 검색" />
+        </div>
+      )}
+
       {suppliesHook.loading ? (
         <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', margin: '0 16px 12px', overflow: 'hidden' }}>
           {[1,2,3,4].map(i => <SkeletonRow key={i} />)}
         </div>
-      ) : supplies.length === 0 ? (
+      ) : filtered.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text2)' }}>
           <Icon.Package size={30} strokeWidth={1.4} style={{ marginBottom: 12, opacity: .5 }} />
-          <div style={{ fontWeight: 500 }}>등록된 소모품이 없습니다</div>
+          <div style={{ fontWeight: 500 }}>{q ? '검색 결과가 없습니다' : '등록된 소모품이 없습니다'}</div>
         </div>
       ) : (
         <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', margin: '0 16px 12px', overflow: 'hidden' }}>
-          {supplies.map(s => (
+          {filtered.map(s => (
             <div key={s.id} className="supply-row" onClick={() => setSel({ ...s, history: s.history || [] })}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 500, fontSize: 13 }}>{s.name}</div>

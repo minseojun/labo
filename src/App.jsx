@@ -40,36 +40,48 @@ function LoadingScreen() {
   )
 }
 
+function notifyTimerDone(name) {
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification(`${name} 완료!`, { body: '실험이 완료되었습니다.' })
+  }
+  haptic.medium()
+}
+
+// endAt(완료 예정 절대 시각) 기준으로 남은 시간을 매번 새로 계산 — setInterval은
+// 화면이 꺼지거나 탭이 백그라운드로 밀리면 브라우저가 틱을 늦추거나 통째로 멈추는데,
+// "1초씩 빼기" 방식이면 그 지연이 그대로 오차로 쌓임. 대신 틱이 오든 늦게 오든
+// (endAt - now)로 다시 계산하면 실제 경과 시간과 항상 일치함
+function timeLeftFrom(t) {
+  if (!t.running || !t.endAt) return t.timeLeft
+  return Math.max(0, Math.round((t.endAt - Date.now()) / 1000))
+}
+
 // ===== 타이머 전역 관리 훅 =====
 function useTimers() {
   const [timers, setTimers] = useState([])
   const intervalsRef = useRef({})
 
-  // 타이머 틱 — 탭 전환해도 계속 돌아감
+  const stopInterval = useCallback((id) => {
+    clearInterval(intervalsRef.current[id])
+    delete intervalsRef.current[id]
+  }, [])
+
+  // 타이머 틱 — 탭 전환해도 계속 돌아감. 실제 남은 시간은 항상 endAt에서 다시 계산
   const startInterval = useCallback((id) => {
     if (intervalsRef.current[id]) return
     intervalsRef.current[id] = setInterval(() => {
       setTimers(prev => prev.map(t => {
         if (t.id !== id || !t.running) return t
-        const next = t.timeLeft - 1
+        const next = timeLeftFrom(t)
         if (next <= 0) {
-          clearInterval(intervalsRef.current[id])
-          delete intervalsRef.current[id]
-          // 브라우저 알림
-          if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification(`${t.name} 완료!`, { body: '실험이 완료되었습니다.' })
-          }
-          return { ...t, timeLeft: 0, running: false, done: true }
+          stopInterval(id)
+          notifyTimerDone(t.name)
+          return { ...t, timeLeft: 0, running: false, done: true, endAt: null }
         }
-        return { ...t, timeLeft: next }
+        return next === t.timeLeft ? t : { ...t, timeLeft: next }
       }))
     }, 1000)
-  }, [])
-
-  const stopInterval = useCallback((id) => {
-    clearInterval(intervalsRef.current[id])
-    delete intervalsRef.current[id]
-  }, [])
+  }, [stopInterval])
 
   const addTimer = useCallback((config) => {
     const id = 't' + Date.now()
@@ -82,6 +94,7 @@ function useTimers() {
       running: false,
       done: false,
       memo: '',
+      endAt: null,
     }])
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission()
@@ -92,11 +105,15 @@ function useTimers() {
     setTimers(prev => prev.map(t => {
       if (t.id !== id) return t
       const updated = { ...t, ...patch }
-      // running 상태 변화에 따라 interval 제어
-      if (patch.running === true) startInterval(id)
-      if (patch.running === false) stopInterval(id)
+      // running 상태 변화에 따라 interval 제어. 시작/재개 시점의 실제 시각으로
+      // endAt을 다시 잡아야 일시정지했다가 이어서 돌려도 오차가 안 생김
+      if (patch.running === true) {
+        updated.endAt = Date.now() + t.timeLeft * 1000
+        startInterval(id)
+      }
+      if (patch.running === false) { stopInterval(id); updated.endAt = null }
       // 리셋
-      if (patch.timeLeft === t.duration) stopInterval(id)
+      if (patch.timeLeft === t.duration) { stopInterval(id); updated.endAt = null }
       return updated
     }))
   }, [startInterval, stopInterval])
@@ -104,6 +121,33 @@ function useTimers() {
   const deleteTimer = useCallback((id) => {
     stopInterval(id)
     setTimers(prev => prev.filter(t => t.id !== id))
+  }, [stopInterval])
+
+  // 탭/앱이 백그라운드에 있는 동안엔 setInterval 자체가 통째로 멈출 수 있어서,
+  // 화면으로 돌아온 순간 즉시 한 번 다시 계산해서 "몰래 끝나 있던" 타이머를 바로 잡아냄
+  useEffect(() => {
+    const recompute = () => {
+      setTimers(prev => prev.map(t => {
+        if (!t.running) return t
+        const next = timeLeftFrom(t)
+        if (next <= 0) {
+          stopInterval(t.id)
+          notifyTimerDone(t.name)
+          return { ...t, timeLeft: 0, running: false, done: true, endAt: null }
+        }
+        return next === t.timeLeft ? t : { ...t, timeLeft: next }
+      }))
+    }
+    const onVisible = () => { if (!document.hidden) recompute() }
+    document.addEventListener('visibilitychange', onVisible)
+    let sub
+    if (Capacitor.isNativePlatform()) {
+      sub = CapacitorApp.addListener('resume', recompute)
+    }
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible)
+      sub?.then(s => s.remove())
+    }
   }, [stopInterval])
 
   // 언마운트 시 전체 정리
