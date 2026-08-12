@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { DAYS } from '../mockData'
 import { fmtDate, formatTime, computeSchedule, scheduleAssigneeOn, scheduleOccurrences } from '../utils'
+import { notifications } from '../utils/notifications'
 import { Icon } from './Icon'
 import { Avatar } from './Avatar'
 
@@ -61,10 +62,11 @@ export default function HomeTab({ user, schedules, schedulesHook, supplies, noti
     .filter(Boolean)
     .sort((a, b) => a.nextDate.localeCompare(b.nextDate))[0] || null
 
-  // 잡무 당번 알림 — 하루에 한 번, 오늘/내일 내 담당 잡무가 있으면 브라우저 알림으로 미리 알려줌.
-  // (탭이 열려 있을 때만 동작. 앱을 완전히 닫아도 오는 진짜 푸시는 서버(FCM) 구성이 필요해서 별개)
+  // 잡무 당번 알림 — 하루에 한 번, 오늘 담당이면 즉시 알려주고 내일 담당이면
+  // 내일 아침으로 로컬 알림을 예약해둠. 네이티브에서는 예약이 실제 OS 알림이라
+  // 앱을 그날 아침에 열지 않아도 정확히 옴(예전엔 탭이 열려 있을 때만 동작했음)
   useEffect(() => {
-    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
+    let cancelled = false
     const notifyKey = `labo-duty-notified-${user.id}-${todayStr}`
     if (localStorage.getItem(notifyKey)) return
 
@@ -73,11 +75,21 @@ export default function HomeTab({ user, schedules, schedulesHook, supplies, noti
     const myTomorrow = taskSchedules.filter(t => scheduleAssigneeOn(schedule, t.id, tomorrowStr) === user.name)
     if (myToday.length === 0 && myTomorrow.length === 0) return
 
-    const lines = []
-    if (myToday.length > 0) lines.push(`오늘: ${myToday.map(t => t.name).join(', ')}`)
-    if (myTomorrow.length > 0) lines.push(`내일: ${myTomorrow.map(t => t.name).join(', ')}`)
-    new Notification('잡무 당번 알림', { body: lines.join('\n') })
-    localStorage.setItem(notifyKey, '1')
+    notifications.permissionState().then(state => {
+      if (cancelled || state !== 'granted') return
+      if (myToday.length > 0) {
+        notifications.showNow('잡무 당번 알림', `오늘: ${myToday.map(t => t.name).join(', ')}`)
+      }
+      if (myTomorrow.length > 0) {
+        const tomorrow8am = new Date(today)
+        tomorrow8am.setDate(tomorrow8am.getDate() + 1)
+        tomorrow8am.setHours(8, 0, 0, 0)
+        notifications.scheduleAt(`duty-tomorrow-${user.id}`, '내일 잡무 당번 알림',
+          `내일: ${myTomorrow.map(t => t.name).join(', ')}`, tomorrow8am)
+      }
+      localStorage.setItem(notifyKey, '1')
+    })
+    return () => { cancelled = true }
   }, [schedule, taskSchedules, todayStr])
 
   const addTodo = async () => {

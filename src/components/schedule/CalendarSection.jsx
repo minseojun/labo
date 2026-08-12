@@ -108,11 +108,15 @@ export default function CalendarSection({ labId, schedules, schedulesHook, notic
   return (
     <div>
       <div className="week-nav">
-        <button onClick={() => { const d = new Date(baseDate); d.setDate(d.getDate() - 7); setBaseDate(d) }}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--text2)', padding: '4px 8px' }}>‹</button>
         <span style={{ fontWeight: 600, fontSize: 15 }}>{baseDate.getFullYear()}년 {baseDate.getMonth() + 1}월</span>
-        <button onClick={() => { const d = new Date(baseDate); d.setDate(d.getDate() + 7); setBaseDate(d) }}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--text2)', padding: '4px 8px' }}>›</button>
+        <div style={{ display: 'flex', gap: 2 }}>
+          <button onClick={() => { const d = new Date(baseDate); d.setDate(d.getDate() - 7); setBaseDate(d) }}
+            style={{ background: 'var(--bg)', border: 'none', cursor: 'pointer', fontSize: 16, color: 'var(--text2)', width: 30, height: 30, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>‹</button>
+          <button onClick={() => { const t = new Date(); setBaseDate(t); setSelDate(fmtDate(t)) }}
+            style={{ background: 'var(--bg)', border: 'none', cursor: 'pointer', fontSize: 11.5, fontWeight: 600, color: 'var(--text2)', padding: '0 11px', height: 30, borderRadius: 9 }}>오늘</button>
+          <button onClick={() => { const d = new Date(baseDate); d.setDate(d.getDate() + 7); setBaseDate(d) }}
+            style={{ background: 'var(--bg)', border: 'none', cursor: 'pointer', fontSize: 16, color: 'var(--text2)', width: 30, height: 30, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>›</button>
+        </div>
       </div>
 
       <div className="week-days">
@@ -230,10 +234,14 @@ export default function CalendarSection({ labId, schedules, schedulesHook, notic
             </div>
             <div className="form-group">
               <label className="form-label">담당자</label>
-              <select className="form-select" value={form.assignee} onChange={e => setForm(p => ({ ...p, assignee: e.target.value }))}>
-                <option value="전체">전체</option>
-                {uniqueMembers.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
-              </select>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                <button type="button" className={`opt-pill${form.assignee === '전체' ? ' on' : ''}`}
+                  onClick={() => setForm(p => ({ ...p, assignee: '전체' }))}>전체</button>
+                {uniqueMembers.map(m => (
+                  <button key={m.id} type="button" className={`opt-pill${form.assignee === m.name ? ' on' : ''}`}
+                    onClick={() => setForm(p => ({ ...p, assignee: m.name }))}>{m.name}</button>
+                ))}
+              </div>
             </div>
             {form.type === 'mine' && (
               <div className="form-group">
@@ -284,10 +292,14 @@ export default function CalendarSection({ labId, schedules, schedulesHook, notic
             </div>
             <div className="form-group">
               <label className="form-label">담당자</label>
-              <select className="form-select" value={showEdit.assignee} onChange={e => setShowEdit(p => ({ ...p, assignee: e.target.value }))}>
-                <option value="전체">전체</option>
-                {uniqueMembers.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
-              </select>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                <button type="button" className={`opt-pill${showEdit.assignee === '전체' ? ' on' : ''}`}
+                  onClick={() => setShowEdit(p => ({ ...p, assignee: '전체' }))}>전체</button>
+                {uniqueMembers.map(m => (
+                  <button key={m.id} type="button" className={`opt-pill${showEdit.assignee === m.name ? ' on' : ''}`}
+                    onClick={() => setShowEdit(p => ({ ...p, assignee: m.name }))}>{m.name}</button>
+                ))}
+              </div>
             </div>
             {showEdit.type === 'mine' && (
               <div className="form-group">

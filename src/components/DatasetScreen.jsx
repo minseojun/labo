@@ -42,9 +42,13 @@ export default function DatasetScreen({ labId, user }) {
   const [importText, setImportText] = useState('')
   const [importing, setImporting] = useState(false)
   const [sel, setSel] = useState(null)
+  const [query, setQuery] = useState('')
   const [form, setForm] = useState({ name: '', path: '', version: '', description: '' })
 
   const isAdmin = user.role === '교수'
+  const q = query.trim().toLowerCase()
+  const filtered = !q ? hook.data : hook.data.filter(ds =>
+    [ds.name, ds.path, ds.description, ds.owner].some(v => v?.toLowerCase().includes(q)))
 
   const addDataset = async () => {
     const name = form.name.trim()
@@ -114,13 +118,39 @@ export default function DatasetScreen({ labId, user }) {
         </div>
       </div>
 
+      {hook.data.length > 0 && (
+        <div className="supply-summary">
+          <div className="supply-stat">
+            <div className="n">{hook.data.length}</div>
+            <div className="l">전체 데이터셋</div>
+          </div>
+          <div className="supply-stat">
+            <div className="n">{new Set(hook.data.map(d => d.owner)).size}</div>
+            <div className="l">등록자 수</div>
+          </div>
+        </div>
+      )}
+
+      {hook.data.length > 0 && (
+        <div style={{ padding: '0 16px 12px', position: 'relative' }}>
+          <Icon.Search size={15} strokeWidth={2} style={{ position: 'absolute', left: 30, top: '50%', transform: 'translateY(-50%)', color: 'var(--text3)', pointerEvents: 'none' }} />
+          <input className="form-input" style={{ paddingLeft: 34 }} value={query} onChange={e => setQuery(e.target.value)}
+            placeholder="이름, 경로, 설명으로 검색" />
+        </div>
+      )}
+
       {hook.loading ? null : hook.data.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text2)' }}>
           <Icon.Database size={30} strokeWidth={1.4} style={{ marginBottom: 12, opacity: .5 }} />
           <div style={{ fontWeight: 500 }}>등록된 데이터셋이 없습니다</div>
           <div style={{ fontSize: 12, marginTop: 4 }}>+ 등록 버튼으로 공유 데이터셋을 추가하세요</div>
         </div>
-      ) : hook.data.map(ds => (
+      ) : filtered.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text2)' }}>
+          <Icon.Database size={30} strokeWidth={1.4} style={{ marginBottom: 12, opacity: .5 }} />
+          <div style={{ fontWeight: 500 }}>검색 결과가 없습니다</div>
+        </div>
+      ) : filtered.map(ds => (
         <div key={ds.id} className="equip-card" onClick={() => setSel(ds)}>
           <div className="equip-icon" style={{ background: 'var(--blue-light)', color: '#2259c4' }}><Icon.Database size={20} /></div>
           <div style={{ flex: 1, minWidth: 0 }}>

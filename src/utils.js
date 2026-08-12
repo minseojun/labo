@@ -60,7 +60,7 @@ export function assignMemberColors(members) {
 // 잡무 개수를 1개씩 세면 2일마다 도는 잡무와 14일마다 도는 잡무가 똑같이 취급되는데,
 // 실제로는 전자가 훨씬 자주 돌아오므로 반복 횟수 기준으로 부담을 재야 공평함
 export function taskWorkload(task) {
-  return generateTaskDates(task.startDate || task.date, task.repeat, task.repeatDays, task.endDate).length
+  return generateTaskDates(task.startDate || task.date, task.repeat, task.repeatDays, task.endDate, task.repeatWeekdays).length
 }
 
 // 잡무 하나를 맡을 수 있는 사람 목록 — 순서는 의미 없음 (누가 언제 맡을지는
@@ -84,7 +84,7 @@ export function computeSchedule(tasks) {
   tasks.forEach(task => {
     const eligible = taskRotation(task)
     if (eligible.length === 0) return
-    generateTaskDates(task.startDate || task.date, task.repeat, task.repeatDays, task.endDate)
+    generateTaskDates(task.startDate || task.date, task.repeat, task.repeatDays, task.endDate, task.repeatWeekdays)
       .forEach(date => events.push({ date, taskId: task.id, eligible, override: task.overrides && task.overrides[date] }))
   })
   events.sort((a, b) => a.date.localeCompare(b.date) || a.taskId.localeCompare(b.taskId))
@@ -147,7 +147,8 @@ export function redistributeTasks(tasks, members) {
 }
 
 // 잡무 반복 주기 → 다음 날짜들 생성 (기본 3개월치, endDate가 그보다 이르면 endDate까지만)
-export function generateTaskDates(startDate, repeat, repeatDays, endDate) {
+// repeatWeekdays: repeat === 'weekdays'일 때만 씀 — 0(일)~6(토) 요일 번호 배열
+export function generateTaskDates(startDate, repeat, repeatDays, endDate, repeatWeekdays) {
   const dates = []
   const start = new Date(startDate)
   const end = new Date(start)
@@ -155,6 +156,19 @@ export function generateTaskDates(startDate, repeat, repeatDays, endDate) {
   if (endDate) {
     const endD = new Date(endDate)
     if (endD < end) end.setTime(endD.getTime())
+  }
+
+  if (repeat === 'weekdays' && repeatWeekdays && repeatWeekdays.length > 0) {
+    // 시작일 자체의 요일이 선택한 요일이 아닐 수도 있어서, 시작일 이후 하루씩
+    // 훑으며 선택된 요일에만 걸리는 날짜를 모음(예: 시작일이 화요일인데 월·금만
+    // 골랐으면 첫 발생일은 그 주의 금요일)
+    const days = new Set(repeatWeekdays)
+    let cur = new Date(start)
+    while (cur <= end) {
+      if (days.has(cur.getDay())) dates.push(fmtDate(cur))
+      cur.setDate(cur.getDate() + 1)
+    }
+    return dates
   }
 
   if (repeat === 'monthly') {

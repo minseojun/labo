@@ -3,6 +3,7 @@ import { StatusBar, Style } from '@capacitor/status-bar'
 import { Capacitor } from '@capacitor/core'
 import { supabase } from '../supabase'
 import { redistributeTasks } from '../utils'
+import { toast } from '../utils/toast'
 import { Icon } from './Icon'
 
 function generateLabCode() {
@@ -29,6 +30,7 @@ export default function AuthScreen({ onLogin }) {
   const [role, setRole] = useState('학부인턴')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [createdLab, setCreatedLab] = useState(null)
 
   // 로그인 화면 상단은 진한 초록 히어로라 상태바 아이콘을 밝게, 나가면 원래대로
   useEffect(() => {
@@ -118,8 +120,9 @@ export default function AuthScreen({ onLogin }) {
         const userData = { name, email, role: '교수', labId: newLab.id }
         await supabase.from('profiles').insert({ id: cred.user.id, name, email, role: '교수', lab_id: newLab.id })
         await supabase.from('lab_members').insert({ lab_id: newLab.id, user_id: cred.user.id, name, role: '교수' })
-        alert(`연구실 생성 완료!\n초대코드: ${newCode}\n구성원들에게 공유하세요.`)
-        onLogin({ id: cred.user.id, ...userData })
+        // onLogin은 "초대코드 확인했어요" 시트를 닫을 때 호출 — alert()는 코드를 복사할
+        // 방법이 없어서 손으로 옮겨 적어야 했는데, 여기서 바로 복사할 수 있게 함
+        setCreatedLab({ code: newCode, userData: { id: cred.user.id, ...userData } })
       }
     } catch (e) {
       if (e.message?.includes('already registered') || e.code === 'user_already_exists') setError('이미 사용 중인 이메일입니다.')
@@ -127,6 +130,16 @@ export default function AuthScreen({ onLogin }) {
       else setError('오류가 발생했습니다: ' + e.message)
     }
     setLoading(false)
+  }
+
+  const copyCreatedCode = async () => {
+    if (!createdLab) return
+    try {
+      await navigator.clipboard.writeText(createdLab.code)
+      toast.success('초대코드를 복사했어요')
+    } catch (e) {
+      toast.error('복사에 실패했어요. 아래 코드를 직접 적어주세요.')
+    }
   }
 
   return (
@@ -254,6 +267,34 @@ export default function AuthScreen({ onLogin }) {
           </>
         )}
       </div>
+
+      {createdLab && (
+        <div className="sheet-backdrop">
+          <div className="sheet">
+            <div className="sheet-handle" />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 18, marginBottom: 6 }}>
+              <Icon.Building size={20} strokeWidth={1.7} style={{ color: 'var(--green)' }} /> 연구실 생성 완료!
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 18, lineHeight: 1.6 }}>
+              아래 초대코드를 구성원들에게 공유하세요. 나중에 사이드바 → 연구실 정보에서도 다시 확인할 수 있어요.
+            </div>
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+              padding: '16px 18px', background: 'var(--green-light)', border: '1.5px solid #c8ecd9', borderRadius: 14, marginBottom: 20,
+            }}>
+              <span style={{ fontSize: 22, fontWeight: 700, letterSpacing: 2, color: 'var(--green)' }}>{createdLab.code}</span>
+              <button onClick={copyCreatedCode} style={{
+                display: 'flex', alignItems: 'center', gap: 5, padding: '8px 14px',
+                background: '#fff', border: '1px solid #c8ecd9', borderRadius: 20,
+                color: 'var(--green)', fontWeight: 600, fontSize: 12.5, cursor: 'pointer', flexShrink: 0,
+              }}>
+                <Icon.Copy size={14} strokeWidth={1.8} /> 복사
+              </button>
+            </div>
+            <button className="btn-primary" onClick={() => onLogin(createdLab.userData)}>시작하기</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
