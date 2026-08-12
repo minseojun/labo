@@ -77,17 +77,20 @@ create table schedules (
 
 -- ----------------------------------------------------------------------------
 -- 5. equipment — 장비 + 사용 로그
+--    in_use_since: 지금 in-use로 바뀐 시각. "사용 종료를 깜빡함"을 감지해서
+--    본인에게 리마인더를 띄우고, 목록에 "n시간째 사용중"을 보여주는 데 씀
 -- ----------------------------------------------------------------------------
 create table equipment (
-  id          uuid primary key default gen_random_uuid(),
-  lab_id      uuid not null references labs(id) on delete cascade,
-  name        text not null,
-  code        text not null,
-  status      text not null default 'available' check (status in ('available', 'in-use', 'maintenance')),
-  last_user   text,
-  icon        text,
-  logs        jsonb not null default '[]'::jsonb,
-  created_at  timestamptz not null default now()
+  id            uuid primary key default gen_random_uuid(),
+  lab_id        uuid not null references labs(id) on delete cascade,
+  name          text not null,
+  code          text not null,
+  status        text not null default 'available' check (status in ('available', 'in-use', 'maintenance')),
+  last_user     text,
+  icon          text,
+  logs          jsonb not null default '[]'::jsonb,
+  in_use_since  timestamptz,
+  created_at    timestamptz not null default now()
 );
 
 create table equipment_comments (
@@ -306,6 +309,23 @@ returns table(id uuid, name text) language sql security definer stable as $$
   select id, name from labs where code = p_code;
 $$;
 grant execute on function lookup_lab_by_code(text) to anon, authenticated;
+
+-- 모듈 켜고 끄기는 교수 전용이 아니라 랩 멤버 전체가 할 수 있어야 해서(labs 테이블
+-- 자체의 update 권한은 이름/초대코드 같은 다른 필드도 있어 여전히 교수 전용으로 둠),
+-- enabled_modules/disabled_tabs 이 두 컬럼만 딱 집어 바꿀 수 있는 전용 RPC를 둠
+create or replace function set_lab_enabled_modules(target_lab_id uuid, new_modules text[])
+returns void language sql security definer as $$
+  update labs set enabled_modules = new_modules
+  where id = target_lab_id and is_lab_member(target_lab_id);
+$$;
+grant execute on function set_lab_enabled_modules(uuid, text[]) to authenticated;
+
+create or replace function set_lab_disabled_tabs(target_lab_id uuid, new_tabs text[])
+returns void language sql security definer as $$
+  update labs set disabled_tabs = new_tabs
+  where id = target_lab_id and is_lab_member(target_lab_id);
+$$;
+grant execute on function set_lab_disabled_tabs(uuid, text[]) to authenticated;
 
 -- ============================================================================
 -- RLS 활성화

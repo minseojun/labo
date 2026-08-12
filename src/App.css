@@ -81,8 +81,11 @@
 .timeline-title { font-size: 13px; font-weight: 500; }
 
 /* ── FAB ─────────────────────────────────────── */
+/* bottom 고정값(96px)은 탭바에 safe-area 여백이 없는 기기 기준이라, 홈 인디케이터가
+   있는 기기(iOS PWA standalone 등)에서는 탭바가 그만큼 더 높아지는데 FAB는 그대로라
+   탭바랑 간격이 어긋나 "붕 떠 보이는" 문제가 있었음 — 탭바와 똑같이 안전 영역만큼 밀어줌 */
 .fab {
-  position: fixed; bottom: 96px; right: calc(50% - 224px);
+  position: fixed; bottom: calc(96px + env(safe-area-inset-bottom, 0px)); right: calc(50% - 224px);
   width: 52px; height: 52px; border-radius: 50%;
   background: var(--green);
   color: #fff; border: none; font-size: 24px;
