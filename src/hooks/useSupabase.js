@@ -4,6 +4,7 @@ import { Capacitor } from '@capacitor/core'
 import { supabase } from '../supabase'
 import { toast } from '../utils/toast'
 import { haptic } from '../utils/haptics'
+import { notifications } from '../utils/notifications'
 
 // DB 컬럼(snake_case) <-> 컴포넌트가 기대하는 필드명(camelCase) 변환.
 // 중첩 jsonb(logs/history/overrides 내부)는 건드리지 않고 최상위 키만 변환함
@@ -199,9 +200,9 @@ function timeLeftFrom(t) {
 }
 
 function notifyTimerDone(name) {
-  if ('Notification' in window && Notification.permission === 'granted') {
-    new Notification(`${name} 완료!`, { body: '실험이 완료되었습니다.' })
-  }
+  // 네이티브에서는 타이머를 시작하는 시점에 이미 endAt으로 로컬 알림을 예약해뒀어서
+  // (앱이 꺼져있어도 정확한 시각에 옴) 여기서 또 띄우면 중복이라 웹에서만 즉시 띄움
+  if (!notifications.isNative) notifications.showNow(`${name} 완료!`, '실험이 완료되었습니다.')
   haptic.medium()
 }
 
@@ -280,6 +281,7 @@ export function useLabRealtime(userId, labId) {
 
   const finishTimer = useCallback((t) => {
     stopInterval(t.id)
+    notifications.cancel(`timer-${t.id}`)
     notifyTimerDone(t.name)
     setTimers(prev => prev.map(x => x.id === t.id ? { ...x, timeLeft: 0, running: false, done: true, endAt: null } : x))
     supabase.from('timers').update({ time_left: 0, running: false, done: true, end_at: null }).eq('id', t.id)
@@ -419,9 +421,7 @@ export function useLabRealtime(userId, labId) {
       equipment: config.equipment || '', running: false, done: false, memo: '',
     })
     if (error) { console.error(error); toast.error('타이머 추가에 실패했어요.') }
-    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
-      Notification.requestPermission()
-    }
+    notifications.ensurePermission()
   }, [userId, labId])
 
   const updateTimer = useCallback(async (id, patch) => {
@@ -430,8 +430,18 @@ export function useLabRealtime(userId, labId) {
     const next = { ...patch }
     // 시작/재개 시점의 실제 시각으로 endAt을 다시 잡아야 일시정지했다가
     // 이어서 돌려도, 다른 기기에서 봐도 오차가 안 생김
-    if (patch.running === true) next.endAt = new Date(Date.now() + t.timeLeft * 1000).toISOString()
-    if (patch.running === false) next.endAt = null
+    if (patch.running === true) {
+      const endAt = new Date(Date.now() + t.timeLeft * 1000)
+      next.endAt = endAt.toISOString()
+      // 앱이 백그라운드에 있거나 완전히 꺼져 있어도 정확한 시각에 알림이 오도록
+      // 시작(재개) 시점에 바로 예약함 — 화면을 계속 보고 있어야만 동작하던
+      // 기존 방식(포그라운드 setInterval)과 달리 실제로 "닫아놔도 오는" 알림
+      notifications.scheduleAt(`timer-${id}`, `${t.name} 완료!`, '실험이 완료됐어요.', endAt)
+    }
+    if (patch.running === false) {
+      next.endAt = null
+      notifications.cancel(`timer-${id}`)
+    }
     if (patch.timeLeft === t.duration) next.endAt = null // 리셋
     setTimers(prev => prev.map(x => x.id === id ? { ...x, ...next } : x))
     const { error } = await supabase.from('timers').update(toSnakeItem(next)).eq('id', id)
@@ -440,6 +450,7 @@ export function useLabRealtime(userId, labId) {
 
   const deleteTimer = useCallback(async (id) => {
     stopInterval(id)
+    notifications.cancel(`timer-${id}`)
     setTimers(prev => prev.filter(t => t.id !== id))
     const { error } = await supabase.from('timers').delete().eq('id', id)
     if (error) { console.error(error); toast.error('타이머 삭제에 실패했어요.') }

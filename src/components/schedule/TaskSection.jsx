@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react'
 import { fmtDate, memberColor, assignMemberColors, taskRotation, computeSchedule, scheduleAssigneeOn, scheduleIsOverridden, scheduleMemberWorkload, redistributeTasks } from '../../utils'
+import { DAYS } from '../../mockData'
 import { toast } from '../../utils/toast'
 import { Icon } from '../Icon'
 import TaskCalendar from './TaskCalendar'
@@ -9,7 +10,65 @@ function repeatLabel(task) {
   if (task.repeat === 'biweekly') return '격주'
   if (task.repeat === 'monthly') return '매월'
   if (task.repeat === 'custom') return `${task.repeatDays}일마다`
+  if (task.repeat === 'weekdays' && task.repeatWeekdays?.length > 0) {
+    return `매주 ${[...task.repeatWeekdays].sort((a, b) => a - b).map(d => DAYS[d]).join('·')}`
+  }
   return '1회'
+}
+
+// 반복 UI(모드 + 요일/일수 입력) → 저장할 repeat/repeatDays/repeatWeekdays 값으로 변환
+function resolveRepeat(f) {
+  if (f.repeatMode === 'weekdays' && f.repeatWeekdays.length > 0) {
+    return { repeat: 'weekdays', repeatDays: null, repeatWeekdays: [...f.repeatWeekdays].sort((a, b) => a - b) }
+  }
+  if (f.repeatMode === 'custom' && Number(f.repeatDays) > 0) {
+    return { repeat: 'custom', repeatDays: Number(f.repeatDays), repeatWeekdays: null }
+  }
+  return { repeat: 'none', repeatDays: null, repeatWeekdays: null }
+}
+
+// 반복 모드 선택 + (요일마다면 요일 토글, N일마다면 숫자 입력) 공용 위젯
+function RepeatPicker({ value, onChange }) {
+  return (
+    <div className="form-group">
+      <label className="form-label">반복</label>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+        {[['none', '반복 없음'], ['weekdays', '요일마다'], ['custom', 'N일마다']].map(([v, l]) => (
+          <button key={v} type="button" onClick={() => onChange({ ...value, repeatMode: v })}
+            style={{ flex: 1, padding: '9px 4px', border: `1.5px solid ${value.repeatMode === v ? 'var(--green)' : 'var(--border)'}`, borderRadius: 8, background: value.repeatMode === v ? 'var(--green-light)' : 'var(--card)', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: value.repeatMode === v ? 'var(--green)' : 'var(--text2)' }}>
+            {l}
+          </button>
+        ))}
+      </div>
+      {value.repeatMode === 'weekdays' && (
+        <div style={{ display: 'flex', gap: 6 }}>
+          {DAYS.map((d, i) => {
+            const on = value.repeatWeekdays.includes(i)
+            return (
+              <button key={i} type="button"
+                onClick={() => onChange({ ...value, repeatWeekdays: on ? value.repeatWeekdays.filter(x => x !== i) : [...value.repeatWeekdays, i] })}
+                style={{ flex: 1, padding: '9px 0', borderRadius: 8, border: `1.5px solid ${on ? 'var(--green)' : 'var(--border)'}`, background: on ? 'var(--green-light)' : 'var(--card)', color: on ? 'var(--green)' : 'var(--text2)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                {d}
+              </button>
+            )
+          })}
+        </div>
+      )}
+      {value.repeatMode === 'custom' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <input className="form-input" type="number" min="1" max="365" value={value.repeatDays}
+            onChange={e => onChange({ ...value, repeatDays: e.target.value })}
+            placeholder="숫자" style={{ flex: 1 }} />
+          <span style={{ fontSize: 13, color: 'var(--text2)', whiteSpace: 'nowrap' }}>일마다</span>
+        </div>
+      )}
+      <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
+        {value.repeatMode === 'none' && '반복 없이 한 번만 등록돼요.'}
+        {value.repeatMode === 'weekdays' && '선택한 요일마다 반복돼요.'}
+        {value.repeatMode === 'custom' && '시작일부터 입력한 일수마다 반복돼요.'}
+      </div>
+    </div>
+  )
 }
 
 // 담당자가 여러 명이면 "이름, 이름 순환"으로 표시
@@ -59,7 +118,7 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
   const [editTask, setEditTask] = useState(null)
   const [swapTask, setSwapTask] = useState(null)
   const [selectedDate, setSelectedDate] = useState(fmtDate(new Date()))
-  const [form, setForm] = useState({ name: '', repeatDays: '', startDate: fmtDate(new Date()), endDate: '', note: '', assignees: [] })
+  const [form, setForm] = useState({ name: '', repeatMode: 'none', repeatDays: '', repeatWeekdays: [], startDate: fmtDate(new Date()), endDate: '', note: '', assignees: [] })
 
   const uniqueMembers = members.filter((m, i, arr) => arr.findIndex(x => x.id === m.id) === i)
   const colorMap = assignMemberColors(uniqueMembers)
@@ -105,22 +164,22 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
     const name = form.name.trim()
     if (!name) { toast.error('잡무 이름을 입력해주세요.'); return }
     if (name.length > 100) { toast.error('이름은 100자 이내로 입력해주세요.'); return }
-    if (form.repeatDays && Number(form.repeatDays) < 1) { toast.error('반복 주기는 1일 이상으로 입력해주세요.'); return }
+    if (form.repeatMode === 'custom' && form.repeatDays && Number(form.repeatDays) < 1) { toast.error('반복 주기는 1일 이상으로 입력해주세요.'); return }
+    if (form.repeatMode === 'weekdays' && form.repeatWeekdays.length === 0) { toast.error('반복할 요일을 하나 이상 선택해주세요.'); return }
     if (form.endDate && form.endDate < form.startDate) { toast.error('종료일은 시작일 이후여야 해요.'); return }
     if (uniqueMembers.length === 0) { toast.error('먼저 랩 구성원이 있어야 해요.'); return }
-    const days = form.repeatDays ? Number(form.repeatDays) : 0
     const rotation = form.assignees.length > 0 ? form.assignees : uniqueMembers.map(m => m.name)
+    const { repeat, repeatDays, repeatWeekdays } = resolveRepeat(form)
     try {
       await schedulesHook.add({
         name, type: 'task',
         date: form.startDate, startDate: form.startDate, endDate: form.endDate || null, time: '',
         assignee: rotation[0], rotation,
-        repeat: days > 0 ? 'custom' : 'none',
-        repeatDays: days > 0 ? days : null,
+        repeat, repeatDays, repeatWeekdays,
         note: form.note.trim(),
       })
       setShowAdd(false)
-      setForm({ name: '', repeatDays: '', startDate: fmtDate(new Date()), endDate: '', note: '', assignees: [] })
+      setForm({ name: '', repeatMode: 'none', repeatDays: '', repeatWeekdays: [], startDate: fmtDate(new Date()), endDate: '', note: '', assignees: [] })
       toast.success(rotation.length > 1 ? `${rotation.length}명이 돌아가며 맡아요` : `${rotation[0]} 담당으로 배정됐어요`)
     } catch (e) {
       // error shown by hook
@@ -183,7 +242,9 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
     setEditTask({
       id: task.id,
       name: task.name,
+      repeatMode: task.repeat === 'weekdays' ? 'weekdays' : task.repeat === 'custom' ? 'custom' : 'none',
       repeatDays: task.repeatDays ? String(task.repeatDays) : '',
+      repeatWeekdays: task.repeatWeekdays || [],
       startDate: task.startDate || task.date,
       endDate: task.endDate || '',
       note: task.note || '',
@@ -195,17 +256,17 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
     const name = editTask.name.trim()
     if (!name) { toast.error('잡무 이름을 입력해주세요.'); return }
     if (name.length > 100) { toast.error('이름은 100자 이내로 입력해주세요.'); return }
-    if (editTask.repeatDays && Number(editTask.repeatDays) < 1) { toast.error('반복 주기는 1일 이상으로 입력해주세요.'); return }
+    if (editTask.repeatMode === 'custom' && editTask.repeatDays && Number(editTask.repeatDays) < 1) { toast.error('반복 주기는 1일 이상으로 입력해주세요.'); return }
+    if (editTask.repeatMode === 'weekdays' && editTask.repeatWeekdays.length === 0) { toast.error('반복할 요일을 하나 이상 선택해주세요.'); return }
     if (editTask.endDate && editTask.endDate < editTask.startDate) { toast.error('종료일은 시작일 이후여야 해요.'); return }
-    const days = editTask.repeatDays ? Number(editTask.repeatDays) : 0
     const rotation = editTask.assignees.length > 0 ? editTask.assignees : uniqueMembers.map(m => m.name)
+    const { repeat, repeatDays, repeatWeekdays } = resolveRepeat(editTask)
     try {
       await schedulesHook.update(editTask.id, {
         name,
         date: editTask.startDate, startDate: editTask.startDate, endDate: editTask.endDate || null,
         assignee: rotation[0], rotation,
-        repeat: days > 0 ? 'custom' : 'none',
-        repeatDays: days > 0 ? days : null,
+        repeat, repeatDays, repeatWeekdays,
         note: editTask.note.trim(),
       })
       setEditTask(null)
@@ -311,16 +372,7 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
               </div>
               <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>종료일은 선택 사항이에요. 비워두면 계속 반복돼요.</div>
             </div>
-            <div className="form-group">
-              <label className="form-label">반복 주기</label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <input className="form-input" type="number" min="0" max="365" value={form.repeatDays}
-                  onChange={e => setForm(p => ({ ...p, repeatDays: e.target.value }))}
-                  placeholder="숫자" style={{ flex: 1 }} />
-                <span style={{ fontSize: 13, color: 'var(--text2)', whiteSpace: 'nowrap' }}>일마다</span>
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>비워두거나 0이면 반복 없이 한 번만 등록돼요.</div>
-            </div>
+            <RepeatPicker value={form} onChange={setForm} />
             <div className="form-group">
               <label className="form-label">담당자 (여러 명 고르면 발생할 때마다 돌아가며 맡아요)</label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -372,16 +424,7 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
               </div>
               <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>종료일은 선택 사항이에요. 비워두면 계속 반복돼요.</div>
             </div>
-            <div className="form-group">
-              <label className="form-label">반복 주기</label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <input className="form-input" type="number" min="0" max="365" value={editTask.repeatDays}
-                  onChange={e => setEditTask(p => ({ ...p, repeatDays: e.target.value }))}
-                  placeholder="숫자" style={{ flex: 1 }} />
-                <span style={{ fontSize: 13, color: 'var(--text2)', whiteSpace: 'nowrap' }}>일마다</span>
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>비워두거나 0이면 반복 없이 한 번만 등록돼요.</div>
-            </div>
+            <RepeatPicker value={editTask} onChange={setEditTask} />
             <div className="form-group">
               <label className="form-label">담당자 (여러 명 고르면 발생할 때마다 돌아가며 맡아요)</label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>

@@ -11,6 +11,9 @@
     "backgroundColor": "#F5F2EA"
   },
   "plugins": {
+    "LocalNotifications": {
+      "iconColor": "#1F9D6B"
+    },
     "SplashScreen": {
       "launchShowDuration": 600,
       "backgroundColor": "#1F9D6B",

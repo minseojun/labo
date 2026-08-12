@@ -23,12 +23,21 @@ export default function HazardLogScreen({ labId, user }) {
   const hook = useCollection(labId, 'hazard_incidents', 'occurred_at')
   const [showAdd, setShowAdd] = useState(false)
   const [sel, setSel] = useState(null)
+  const [query, setQuery] = useState('')
+  const [severityFilter, setSeverityFilter] = useState('all')
   const [form, setForm] = useState({
     title: '', category: 'spill', severity: 'low',
     location: '', actionTaken: '', occurredAt: fmtDate(new Date()),
   })
 
   const isAdmin = user.role === '교수'
+  const counts = { low: 0, medium: 0, high: 0 }
+  hook.data.forEach(inc => { if (counts[inc.severity] != null) counts[inc.severity]++ })
+
+  const q = query.trim().toLowerCase()
+  const filtered = hook.data
+    .filter(inc => !q || [inc.title, inc.location, categoryLabel(inc.category)].some(v => v?.toLowerCase().includes(q)))
+    .filter(inc => severityFilter === 'all' || inc.severity === severityFilter)
 
   const addIncident = async () => {
     const title = form.title.trim()
@@ -70,13 +79,51 @@ export default function HazardLogScreen({ labId, user }) {
         </div>
       </div>
 
+      {hook.data.length > 0 && (
+        <div className="supply-summary">
+          <div className="supply-stat">
+            <div className="n" style={{ color: '#1a7a52' }}>{counts.low}</div>
+            <div className="l">경미</div>
+          </div>
+          <div className="supply-stat">
+            <div className="n" style={{ color: '#b97b10' }}>{counts.medium}</div>
+            <div className="l">보통</div>
+          </div>
+          <div className="supply-stat" style={{ borderColor: counts.high > 0 ? '#f8c5c5' : 'var(--border)' }}>
+            <div className="n" style={{ color: '#c23b3b' }}>{counts.high}</div>
+            <div className="l">심각</div>
+          </div>
+        </div>
+      )}
+
+      {hook.data.length > 0 && (
+        <div style={{ padding: '0 16px 12px', position: 'relative' }}>
+          <Icon.Search size={15} strokeWidth={2} style={{ position: 'absolute', left: 30, top: '50%', transform: 'translateY(-50%)', color: 'var(--text3)', pointerEvents: 'none' }} />
+          <input className="form-input" style={{ paddingLeft: 34 }} value={query} onChange={e => setQuery(e.target.value)}
+            placeholder="내용, 장소, 유형으로 검색" />
+        </div>
+      )}
+
+      {hook.data.length > 0 && (
+        <div className="filter-row">
+          {[['all', '전체'], ['low', '경미'], ['medium', '보통'], ['high', '심각']].map(([v, l]) => (
+            <div key={v} className={`filter-chip${severityFilter === v ? ' active' : ''}`} onClick={() => setSeverityFilter(v)}>{l}</div>
+          ))}
+        </div>
+      )}
+
       {hook.loading ? null : hook.data.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text2)' }}>
           <Icon.AlertTriangle size={32} strokeWidth={1.5} style={{ marginBottom: 12, opacity: .5 }} />
           <div style={{ fontWeight: 500 }}>기록된 위험물 이력이 없습니다</div>
           <div style={{ fontSize: 12, marginTop: 4 }}>+ 기록 버튼으로 사고를 기록하세요</div>
         </div>
-      ) : hook.data.map(inc => {
+      ) : filtered.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text2)' }}>
+          <Icon.AlertTriangle size={32} strokeWidth={1.5} style={{ marginBottom: 12, opacity: .5 }} />
+          <div style={{ fontWeight: 500 }}>검색 결과가 없습니다</div>
+        </div>
+      ) : filtered.map(inc => {
         const sev = severityInfo(inc.severity)
         return (
           <div key={inc.id} className="equip-card" onClick={() => setSel(inc)}>

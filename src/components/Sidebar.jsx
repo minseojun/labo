@@ -1,7 +1,8 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { toast } from '../utils/toast'
 import { haptic } from '../utils/haptics'
+import { notifications } from '../utils/notifications'
 import { Icon } from './Icon'
 import { Avatar, isImageAvatar } from './Avatar'
 import { MODULES, CORE_TABS } from '../modules'
@@ -62,14 +63,13 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate,
   const [modulesOpen, setModulesOpen] = useState(false)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const fileInputRef = useRef(null)
-  const [notifPermission, setNotifPermission] = useState(
-    typeof Notification !== 'undefined' ? Notification.permission : 'unsupported'
-  )
+  const [notifPermission, setNotifPermission] = useState('prompt')
+
+  useEffect(() => { notifications.permissionState().then(setNotifPermission) }, [])
 
   const requestNotify = async () => {
-    if (typeof Notification === 'undefined') return
-    const result = await Notification.requestPermission()
-    setNotifPermission(result)
+    const granted = await notifications.ensurePermission()
+    setNotifPermission(granted ? 'granted' : await notifications.permissionState())
   }
 
   const handleAvatarFile = async (e) => {
@@ -96,6 +96,17 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate,
 
   const uniqueMembers = members.filter((m, i, arr) => arr.findIndex(x => x.id === m.id) === i)
   const isAdmin = user.role === '교수'
+
+  const copyLabCode = async (code) => {
+    if (!code) return
+    try {
+      await navigator.clipboard.writeText(code)
+      haptic.light()
+      toast.success('초대코드를 복사했어요')
+    } catch (e) {
+      toast.error('복사에 실패했어요.')
+    }
+  }
 
   const [deleting, setDeleting] = useState(false)
 
@@ -242,6 +253,10 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate,
                   <span style={{ fontSize: 11, color: 'var(--text2)' }}>초대코드</span>
                 </div>
               </div>
+              <button onClick={() => copyLabCode(labInfo?.code)}
+                style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '7px 12px', border: '1px solid var(--border)', borderRadius: 20, background: 'var(--card)', cursor: 'pointer', fontSize: 11.5, fontWeight: 600, color: 'var(--text2)', flexShrink: 0 }}>
+                <Icon.Copy size={13} strokeWidth={1.8} /> 복사
+              </button>
             </GroupRow>
           </SidebarGroup>
 
@@ -368,7 +383,9 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate,
               <>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, fontSize: 17, marginBottom: 12 }}><Icon.Bell size={19} strokeWidth={1.7} /> 알림 설정</div>
                 <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.6, marginBottom: 16 }}>
-                  타이머가 끝나거나, 오늘·내일 내 잡무 당번이 있으면 브라우저 알림으로 알려드려요.
+                  {notifications.isNative
+                    ? '타이머 완료, 장비 방치, GPU 예약 시작, 내일 잡무 당번을 기기 알림으로 알려드려요. 앱을 꺼두거나 화면이 잠겨 있어도 정확한 시각에 와요.'
+                    : '타이머가 끝나거나, 오늘·내일 내 잡무 당번이 있으면 브라우저 알림으로 알려드려요. 이 탭이 열려 있을 때만 동작해요 — 앱을 꺼둬도 오는 알림은 모바일 앱에서 지원해요.'}
                 </div>
                 <div style={{ padding: '10px 14px', background: 'var(--bg)', borderRadius: 10, fontSize: 13, marginBottom: 16 }}>
                   현재 상태: <b>{
@@ -377,11 +394,15 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate,
                     notifPermission === 'unsupported' ? '이 브라우저는 지원하지 않음' : '아직 허용 안 함'
                   }</b>
                 </div>
-                {notifPermission === 'default' && (
+                {(notifPermission === 'default' || notifPermission === 'prompt') && (
                   <button className="btn-primary" onClick={requestNotify}>알림 켜기</button>
                 )}
                 {notifPermission === 'denied' && (
-                  <div style={{ fontSize: 12, color: 'var(--text2)' }}>브라우저 주소창 옆 사이트 설정에서 알림 차단을 해제한 뒤 새로고침해주세요.</div>
+                  <div style={{ fontSize: 12, color: 'var(--text2)' }}>
+                    {notifications.isNative
+                      ? '기기 설정 앱에서 LABO의 알림 권한을 켜주세요.'
+                      : '브라우저 주소창 옆 사이트 설정에서 알림 차단을 해제한 뒤 새로고침해주세요.'}
+                  </div>
                 )}
               </>
             )}

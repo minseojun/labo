@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useCollection } from '../hooks/useSupabase'
 import { toast } from '../utils/toast'
+import { notifications } from '../utils/notifications'
 import { Icon } from './Icon'
 
 const toISO = (date, time) => new Date(`${date}T${time}:00`).toISOString()
@@ -18,6 +19,8 @@ export default function GpuReservationScreen({ labId, user }) {
   const [showAddServer, setShowAddServer] = useState(false)
   const [showReserve, setShowReserve] = useState(false)
   const [serverForm, setServerForm] = useState({ name: '', spec: '' })
+  const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState('all')
   const now = new Date()
   const [resForm, setResForm] = useState({
     date: now.toISOString().slice(0, 10), startTime: '09:00', endTime: '18:00', memo: '',
@@ -32,6 +35,14 @@ export default function GpuReservationScreen({ labId, user }) {
   const upcomingOf = (serverId) => reservations
     .filter(r => r.serverId === serverId && new Date(r.endAt) > now)
     .sort((a, b) => new Date(a.startAt) - new Date(b.startAt))
+
+  const availableCount = servers.filter(sv => !activeOf(sv.id)).length
+  const busyCount = servers.length - availableCount
+
+  const q = query.trim().toLowerCase()
+  const filteredServers = servers
+    .filter(sv => !q || sv.name?.toLowerCase().includes(q) || sv.spec?.toLowerCase().includes(q))
+    .filter(sv => filter === 'all' || (filter === 'available' ? !activeOf(sv.id) : !!activeOf(sv.id)))
 
   const addServer = async () => {
     const name = serverForm.name.trim()
@@ -60,17 +71,27 @@ export default function GpuReservationScreen({ labId, user }) {
       new Date(startAt) < new Date(r.endAt) && new Date(endAt) > new Date(r.startAt))
     if (overlap) { toast.error('이미 예약된 시간대와 겹쳐요.'); return }
     try {
-      await resHook.add({ serverId: selServer.id, userName: user.name, startAt, endAt, memo: resForm.memo.trim() })
+      const created = await resHook.add({ serverId: selServer.id, userName: user.name, startAt, endAt, memo: resForm.memo.trim() })
       setShowReserve(false)
       setResForm({ date: now.toISOString().slice(0, 10), startTime: '09:00', endTime: '18:00', memo: '' })
       toast.success('예약했어요')
+      // 예약 시작 시각에 맞춰 알림을 예약해둠 — 다른 사람이 쓰고 있어서 잊고 있다가도
+      // 내 차례가 되면 앱을 안 열어도 알 수 있음
+      if (created) {
+        await notifications.ensurePermission()
+        notifications.scheduleAt(`gpu-res-${created.id}`, `${selServer.name} 예약 시작`,
+          '예약하신 GPU 서버 사용 시간이 시작됐어요.', new Date(startAt))
+      }
     } catch (e) { /* error shown by hook */ }
   }
 
   const cancelReservation = async (r) => {
     if (r.userName !== user.name && !isAdmin) return
     if (!window.confirm('이 예약을 취소하시겠습니까?')) return
-    try { await resHook.remove(r.id) } catch (e) { /* error shown by hook */ }
+    try {
+      await resHook.remove(r.id)
+      notifications.cancel(`gpu-res-${r.id}`)
+    } catch (e) { /* error shown by hook */ }
   }
 
   return (
@@ -87,13 +108,51 @@ export default function GpuReservationScreen({ labId, user }) {
         </div>
       </div>
 
+      {servers.length > 0 && (
+        <div className="supply-summary">
+          <div className="supply-stat">
+            <div className="n">{servers.length}</div>
+            <div className="l">전체 서버</div>
+          </div>
+          <div className="supply-stat">
+            <div className="n" style={{ color: '#1a7a52' }}>{availableCount}</div>
+            <div className="l">예약가능</div>
+          </div>
+          <div className="supply-stat" style={{ borderColor: busyCount > 0 ? '#f8c5c5' : 'var(--border)' }}>
+            <div className="n" style={{ color: '#c23b3b' }}>{busyCount}</div>
+            <div className="l">사용중</div>
+          </div>
+        </div>
+      )}
+
+      {servers.length > 0 && (
+        <div style={{ padding: '0 16px 12px', position: 'relative' }}>
+          <Icon.Search size={15} strokeWidth={2} style={{ position: 'absolute', left: 30, top: '50%', transform: 'translateY(-50%)', color: 'var(--text3)', pointerEvents: 'none' }} />
+          <input className="form-input" style={{ paddingLeft: 34 }} value={query} onChange={e => setQuery(e.target.value)}
+            placeholder="서버 이름, 스펙으로 검색" />
+        </div>
+      )}
+
+      {servers.length > 0 && (
+        <div className="filter-row">
+          {[['all', '전체'], ['available', '예약가능'], ['busy', '사용중']].map(([v, l]) => (
+            <div key={v} className={`filter-chip${filter === v ? ' active' : ''}`} onClick={() => setFilter(v)}>{l}</div>
+          ))}
+        </div>
+      )}
+
       {serversHook.loading ? null : servers.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text2)' }}>
           <Icon.Server size={30} strokeWidth={1.4} style={{ marginBottom: 12, opacity: .5 }} />
           <div style={{ fontWeight: 500 }}>등록된 서버가 없습니다</div>
           {isAdmin && <div style={{ fontSize: 12, marginTop: 4 }}>+ 서버 추가 버튼으로 등록하세요</div>}
         </div>
-      ) : servers.map(sv => {
+      ) : filteredServers.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text2)' }}>
+          <Icon.Server size={30} strokeWidth={1.4} style={{ marginBottom: 12, opacity: .5 }} />
+          <div style={{ fontWeight: 500 }}>검색 결과가 없습니다</div>
+        </div>
+      ) : filteredServers.map(sv => {
         const active = activeOf(sv.id)
         return (
           <div key={sv.id} className="equip-card" onClick={() => setSelServer(sv)}>

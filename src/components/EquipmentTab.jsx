@@ -4,6 +4,7 @@ import jsQR from 'jsqr'
 import { supabase } from '../supabase'
 import { toCamelRow } from '../hooks/useSupabase'
 import { toast } from '../utils/toast'
+import { notifications } from '../utils/notifications'
 import { Icon } from './Icon'
 
 const QR_PREFIX = 'LABO-EQUIP:'
@@ -301,21 +302,32 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
       if (localStorage.getItem(key)) return
       localStorage.setItem(key, '1')
       toast.error(`${eq.name} ${elapsedLabel(elapsed)}이에요. 다 쓰셨으면 종료를 눌러주세요.`)
-      if ('Notification' in window && Notification.permission === 'granted') {
-        new Notification('장비 사용 종료 확인', { body: `${eq.name}, 아직 사용 중이신가요?` })
-      }
+      // 네이티브는 사용 시작 시점에 이미 이 시각으로 알림을 예약해둬서 별도로 안 띄움
+      if (!notifications.isNative) notifications.showNow('장비 사용 종료 확인', `${eq.name}, 아직 사용 중이신가요?`)
     })
   }, [equipment, user.name])
 
   const toggleUse = async (eq) => {
     const isUsing = eq.status === 'in-use' && eq.lastUser === user.name
-    const inUseSince = isUsing ? null : new Date().toISOString()
+    const startedAt = isUsing ? null : new Date()
+    const inUseSince = startedAt ? startedAt.toISOString() : null
     try {
       await equipmentHook.update(eq.id, {
         status: isUsing ? 'available' : 'in-use',
         lastUser: user.name,
         inUseSince,
       })
+      // 사용 종료를 깜빡했는지는 기존엔 앱을 켜고 있어야만 감지됐는데(포그라운드 폴링),
+      // 시작하는 시점에 바로 2시간 뒤로 알림을 예약해두면 앱을 꺼둬도 정확히 옴.
+      // 종료하면(또는 다른 사람이 이어받으면) 곧바로 취소함
+      if (startedAt) {
+        await notifications.ensurePermission()
+        notifications.scheduleAt(`equip-${eq.id}`, '장비 사용 종료 확인',
+          `${eq.name}, 2시간째 사용 중이에요. 다 쓰셨으면 종료를 눌러주세요.`,
+          new Date(startedAt.getTime() + FORGOTTEN_USE_THRESHOLD_MS))
+      } else {
+        notifications.cancel(`equip-${eq.id}`)
+      }
       // 사용 이력은 equipment_logs 별도 테이블에 쌓음 — equipment 행 안에 배열로
       // 넣으면 오래 쓸수록 그 행 자체가 끝없이 커짐.
       // 이 insert가 실패해도(예: 마이그레이션이 아직 배포 전이라 테이블이 없음)
@@ -367,8 +379,9 @@ export default function EquipmentTab({ labId, equipment, equipmentHook, user }) 
   const setMaintenance = async (eq, status) => {
     try {
       // 점검중으로 바뀌거나 점검이 끝나거나, 어느 쪽이든 "사용 시작 시각"은 더 이상
-      // 유효하지 않으니 같이 지움
+      // 유효하지 않으니 같이 지움 (예약해둔 방치 알림도 함께 취소)
       await equipmentHook.update(eq.id, { status, inUseSince: null })
+      notifications.cancel(`equip-${eq.id}`)
       setSel(p => p ? { ...p, status, inUseSince: null } : p)
     } catch (e) {
       console.error(e)
