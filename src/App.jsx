@@ -43,7 +43,7 @@ function LoadingScreen() {
 async function loadUserAndLab(authUser) {
   const { data: profile, error } = await supabase.from('profiles').select('*').eq('id', authUser.id).single()
   if (error || !profile) return { user: null, labInfo: null }
-  const user = { id: authUser.id, name: profile.name, email: profile.email, role: profile.role, labId: profile.lab_id, avatar: profile.avatar }
+  const user = { id: authUser.id, name: profile.name, email: profile.email, role: profile.role, labId: profile.lab_id, avatar: profile.avatar, hiddenModules: profile.hidden_modules || [] }
   let labInfo = null
   if (user.labId) {
     const { data: lab } = await supabase.from('labs').select('*').eq('id', user.labId).single()
@@ -134,19 +134,24 @@ export default function App() {
     return () => supabase.removeChannel(channel)
   }, [user?.id, user?.labId])
 
-  // 랩 관리자가 이 탭(또는 모듈)을 꺼버렸는데 마침 그 화면을 보고 있었다면 홈으로 돌려보냄
+  // 랩 관리자가 이 탭(또는 모듈)을 꺼버렸거나, 본인이 이 모듈을 개인적으로 숨겨뒀는데
+  // 마침 그 화면을 보고 있었다면 홈으로 돌려보냄
   useEffect(() => {
     const isDisabledCore = labInfo?.disabledTabs?.includes(activeTab)
     const moduleMatch = MODULES.find(m => m.key === activeTab)
     const isDisabledModule = moduleMatch && !isModuleEnabled(labInfo, moduleMatch.key)
-    if (isDisabledCore || isDisabledModule) setActiveTab('home')
-  }, [labInfo, activeTab])
+    const isPersonallyHidden = moduleMatch && (user?.hiddenModules || []).includes(activeTab)
+    if (isDisabledCore || isDisabledModule || isPersonallyHidden) setActiveTab('home')
+  }, [labInfo, activeTab, user?.hiddenModules])
 
   const labId = user?.labId
+  // 랩이 켠 모듈 중에서, 본인이 개인적으로 숨기지 않은 것만 내 탭바에 보임 —
+  // 데이터/랩 설정은 그대로 두고 "내 화면에 보이는지"만 개인 취향으로 조절
   const enabledModuleTabs = MODULES.filter(m => isModuleEnabled(labInfo, m.key))
+  const visibleModuleTabs = enabledModuleTabs.filter(m => !(user?.hiddenModules || []).includes(m.key))
   const visibleTabs = [
     ...TABS.filter(t => t.id === 'home' || !labInfo?.disabledTabs?.includes(t.id)),
-    ...enabledModuleTabs.map(m => ({ id: m.key, icon: m.icon, label: m.label })),
+    ...visibleModuleTabs.map(m => ({ id: m.key, icon: m.icon, label: m.label })),
   ]
   const schedulesHook = useCollection(labId, 'schedules', 'date')
   const equipmentHook = useCollection(labId, 'equipment', 'created_at')
@@ -215,7 +220,7 @@ export default function App() {
         {activeTab === 'supplies' && !labInfo?.disabledTabs?.includes('supplies') && (
           <SuppliesTab labId={labId} supplies={suppliesHook.data} suppliesHook={suppliesHook} user={user} />
         )}
-        {enabledModuleTabs.map(m => activeTab === m.key && (
+        {visibleModuleTabs.map(m => activeTab === m.key && (
           <ErrorBoundary key={m.key}>
             <m.Screen labId={labId} user={user} members={members} />
           </ErrorBoundary>

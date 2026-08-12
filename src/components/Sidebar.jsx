@@ -172,6 +172,21 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate,
     }
   }
 
+  // 랩이 켠 모듈 중에서 "내 탭바에는 안 보이게" 개인적으로 숨김/해제 — 랩 설정이나
+  // 데이터는 전혀 안 건드리고, 본인 프로필에만 저장되는 순수 개인 취향
+  const handleToggleMyModule = async (key, hide) => {
+    const current = user.hiddenModules || []
+    const next = hide ? [...new Set([...current, key])] : current.filter(k => k !== key)
+    try {
+      await supabase.from('profiles').update({ hidden_modules: next }).eq('id', user.id)
+      onUserUpdate({ ...user, hiddenModules: next })
+      toast.success(hide ? '내 화면에서 숨겼어요' : '내 화면에 다시 표시해요')
+    } catch (e) {
+      console.error(e)
+      toast.error('설정 변경에 실패했어요.')
+    }
+  }
+
   const handleKick = async (memberId) => {
     if (!window.confirm('이 구성원을 연구실에서 내보내시겠습니까?')) return
     try {
@@ -309,6 +324,31 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate,
                     <span style={{ fontSize: 12, color: 'var(--text2)' }}>{toggleItems.filter(m => m.on).length}/{toggleItems.length}개 켜짐 — 눌러서 펼치기</span>
                   </GroupRow>
                 )}
+              </SidebarGroup>
+            )
+          })()}
+
+          {/* 내 화면에 보이는 모듈 (전체 구성원) — 랩이 켠 모듈 중 나한테만 안 보이게
+              숨길 수 있음. 랩 설정이나 다른 사람의 화면, 모듈 데이터는 그대로임 */}
+          {(() => {
+            const labModules = MODULES.filter(m => isModuleEnabled(labInfo, m.key))
+            if (labModules.length === 0) return null
+            const hidden = user.hiddenModules || []
+            return (
+              <SidebarGroup title="내 탭바에 보이는 모듈" subtitle="나에게만 적용돼요 — 데이터는 그대로 유지돼요">
+                {labModules.map((m, i) => {
+                  const on = !hidden.includes(m.key)
+                  return (
+                    <GroupRow key={m.key} last={i === labModules.length - 1}>
+                      <m.icon size={17} strokeWidth={1.7} style={{ color: on ? 'var(--green)' : 'var(--text3)', flexShrink: 0 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600 }}>{m.label}</div>
+                        <div style={{ fontSize: 10.5, color: 'var(--text2)', marginTop: 1 }}>{m.description}</div>
+                      </div>
+                      <ToggleSwitch on={on} onClick={() => handleToggleMyModule(m.key, on)} />
+                    </GroupRow>
+                  )
+                })}
               </SidebarGroup>
             )
           })()}

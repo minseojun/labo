@@ -21,15 +21,18 @@ create table labs (
 
 -- ----------------------------------------------------------------------------
 -- 2. profiles — 유저 프로필 (auth.users 1:1). 본인만 읽고 쓸 수 있음 (Firestore users/{uid}와 동일)
+--    hidden_modules: 랩이 켠 모듈 중 "내 탭바에는 안 보이게" 개인적으로 숨긴 목록.
+--    랩 단위 설정(labs.enabled_modules)과 별개로, 순전히 본인 화면 취향만 담음
 -- ----------------------------------------------------------------------------
 create table profiles (
-  id          uuid primary key references auth.users(id) on delete cascade,
-  name        text not null,
-  email       text not null,
-  role        text not null,
-  lab_id      uuid references labs(id) on delete set null,
-  avatar      text,
-  created_at  timestamptz not null default now()
+  id              uuid primary key references auth.users(id) on delete cascade,
+  name            text not null,
+  email           text not null,
+  role            text not null,
+  lab_id          uuid references labs(id) on delete set null,
+  avatar          text,
+  hidden_modules  text[] not null default '{}',
+  created_at      timestamptz not null default now()
 );
 
 -- ----------------------------------------------------------------------------
