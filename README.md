@@ -33,6 +33,20 @@ npm run dev
    VITE_SUPABASE_ANON_KEY=your-anon-public-key
    ```
 
+## 에러 모니터링 (Sentry, 선택)
+
+지금까지는 뭔가 고장 나도 사용자가 직접 말해줘야만 알 수 있었어요(예: 장비 사용 이력이 안 쌓이는 버그도 제보로 처음 발견됨). [Sentry](https://sentry.io)를 연결하면 화면 렌더링 오류·Supabase 쿼리 실패가 자동으로 리포팅돼서 먼저 알아챌 수 있어요.
+
+1. [Sentry](https://sentry.io)에서 무료 계정 생성 → 새 프로젝트 생성 (플랫폼: React)
+2. 프로젝트의 **DSN** 복사 (Settings → Projects → \<프로젝트\> → Client Keys (DSN))
+3. `.env.local`에 추가:
+   ```
+   VITE_SENTRY_DSN=https://xxxxxxxxxxxx@xxxxxxxx.ingest.sentry.io/xxxxxxx
+   ```
+4. Vercel에 배포한다면 Vercel 프로젝트 → Settings → Environment Variables에도 같은 값 추가
+
+비워두면 그냥 조용히 꺼진 채로 동작해요(로컬 개발 중엔 안 켜도 무방).
+
 ## Vercel 배포
 
 ```bash
