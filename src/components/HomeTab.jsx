@@ -84,7 +84,8 @@ export default function HomeTab({ user, schedules, schedulesHook, supplies, noti
     const name = newTodo.trim()
     if (!name) return
     try {
-      await schedulesHook.add({ name, type: 'mine', assignee: user.name, date: todoDate, time: '', done: false })
+      // 개인 할 일은 기본 비공개 — 나만 보이고, 원하면 아래 눈 아이콘으로 팀에 공개할 수 있음
+      await schedulesHook.add({ name, type: 'mine', assignee: user.name, userId: user.id, visible: false, date: todoDate, time: '', done: false })
       setNewTodo('')
       setTodoDate(todayStr)
     } catch (e) {}
@@ -99,6 +100,12 @@ export default function HomeTab({ user, schedules, schedulesHook, supplies, noti
   const removeTodo = async (id) => {
     try {
       await schedulesHook.remove(id)
+    } catch (e) {}
+  }
+
+  const toggleVisible = async (id, visible) => {
+    try {
+      await schedulesHook.update(id, { visible: !visible })
     } catch (e) {}
   }
 
@@ -240,6 +247,13 @@ export default function HomeTab({ user, schedules, schedulesHook, supplies, noti
                   <span className={`chip ${ts.chip}`} style={{ fontSize: 10, flexShrink: 0, opacity: s.done ? .5 : 1 }}>{ts.label}</span>
                 ) : (
                   <span style={{ fontSize: 10, color: 'var(--text3)', flexShrink: 0 }}>{fmtShort(s.date)}</span>
+                )}
+                {checkable && (
+                  <button onClick={() => toggleVisible(s.id, s.visible)}
+                    title={s.visible ? '팀에 공개됨 — 눌러서 비공개로' : '나만 보임 — 눌러서 팀에 공개'}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: s.visible ? 'var(--green)' : 'var(--text3)', padding: '0 2px', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                    {s.visible ? <Icon.Eye size={14} strokeWidth={1.8} /> : <Icon.EyeOff size={14} strokeWidth={1.8} />}
+                  </button>
                 )}
                 {checkable && (
                   <button onClick={() => removeTodo(s.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', fontSize: 18, padding: '0 2px', lineHeight: 1 }}>×</button>

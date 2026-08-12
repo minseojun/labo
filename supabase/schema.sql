@@ -47,6 +47,8 @@ create table lab_members (
 
 -- ----------------------------------------------------------------------------
 -- 4. schedules — 일정 + 잡무 (type: lab / mine / task)
+--    user_id/visible: 개인(mine) 일정의 소유자와 공개 여부. 공용(lab)/잡무(task)는
+--    이 두 컬럼을 쓰지 않고 예전처럼 랩 전체에 공유됨(RLS 정책 참고)
 -- ----------------------------------------------------------------------------
 create table schedules (
   id           uuid primary key default gen_random_uuid(),
@@ -65,6 +67,8 @@ create table schedules (
   repeat_days  integer,
   note         text,
   done         boolean default false,
+  user_id      uuid references auth.users(id) on delete set null,
+  visible      boolean not null default false,
   created_at   timestamptz not null default now()
 );
 
@@ -213,6 +217,25 @@ create table fridge_items (
 );
 
 -- ----------------------------------------------------------------------------
+-- 13.5 timers — 실험 타이머. 본인 소유(user_id)로만 접근하는 개인 데이터라,
+--      랩원끼리 공유하지 않고 "내 타이머가 내 기기들 사이에서 안 사라지게"만 함
+-- ----------------------------------------------------------------------------
+create table timers (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references auth.users(id) on delete cascade,
+  lab_id      uuid references labs(id) on delete set null,
+  name        text not null,
+  duration    integer not null,
+  time_left   integer not null,
+  equipment   text default '',
+  running     boolean not null default false,
+  done        boolean not null default false,
+  memo        text default '',
+  end_at      timestamptz,
+  created_at  timestamptz not null default now()
+);
+
+-- ----------------------------------------------------------------------------
 -- 13. onboarding_items / onboarding_progress — Lab Ops 모듈: 신입 온보딩 체크리스트
 -- ----------------------------------------------------------------------------
 create table onboarding_items (
@@ -301,6 +324,7 @@ alter table datasets enable row level security;
 alter table fridge_items enable row level security;
 alter table onboarding_items enable row level security;
 alter table onboarding_progress enable row level security;
+alter table timers enable row level security;
 
 -- ----------------------------------------------------------------------------
 -- labs: 인증된 사용자는 조회 가능(가입 시 초대코드 조회 필요), 생성은 누구나(신규 랩),
@@ -339,12 +363,22 @@ create policy "members_delete" on lab_members for delete
   using (is_professor(lab_id));
 
 -- ----------------------------------------------------------------------------
--- schedules: 랩 멤버는 전부 CRUD 가능 (Firestore rules와 동일)
+-- schedules: 공용(lab)/잡무(task)는 랩 멤버 전부 CRUD 가능. 개인(mine)은
+--            기본적으로 본인만 보고 고칠 수 있고, visible=true면 랩 전체에
+--            보이기만 함(수정/삭제는 여전히 본인 또는 정정 목적의 교수만)
 -- ----------------------------------------------------------------------------
-create policy "schedules_select" on schedules for select using (is_lab_member(lab_id));
-create policy "schedules_insert" on schedules for insert with check (is_lab_member(lab_id));
-create policy "schedules_update" on schedules for update using (is_lab_member(lab_id));
-create policy "schedules_delete" on schedules for delete using (is_lab_member(lab_id));
+create policy "schedules_select" on schedules for select using (
+  is_lab_member(lab_id) and (type <> 'mine' or user_id = auth.uid() or visible)
+);
+create policy "schedules_insert" on schedules for insert with check (
+  is_lab_member(lab_id) and (type <> 'mine' or user_id = auth.uid() or is_professor(lab_id))
+);
+create policy "schedules_update" on schedules for update using (
+  is_lab_member(lab_id) and (type <> 'mine' or user_id = auth.uid() or user_id is null or is_professor(lab_id))
+);
+create policy "schedules_delete" on schedules for delete using (
+  is_lab_member(lab_id) and (type <> 'mine' or user_id = auth.uid() or user_id is null or is_professor(lab_id))
+);
 
 -- ----------------------------------------------------------------------------
 -- equipment: 생성/삭제는 교수만, 조회/사용상태 변경은 멤버 전체
@@ -448,6 +482,14 @@ create policy "onboarding_progress_insert" on onboarding_progress for insert
 create policy "onboarding_progress_update" on onboarding_progress for update
   using (user_id = auth.uid() or is_professor(lab_id));
 
+-- ----------------------------------------------------------------------------
+-- timers: 본인만 접근 (schedules의 개인 일정과 달리 공개 옵션 자체가 없음)
+-- ----------------------------------------------------------------------------
+create policy "timers_select" on timers for select using (user_id = auth.uid());
+create policy "timers_insert" on timers for insert with check (user_id = auth.uid());
+create policy "timers_update" on timers for update using (user_id = auth.uid());
+create policy "timers_delete" on timers for delete using (user_id = auth.uid());
+
 -- ============================================================================
 -- 실시간 구독(realtime) 활성화 — 앱이 onSnapshot 대신 postgres_changes로 구독함
 -- ============================================================================
@@ -466,11 +508,13 @@ alter publication supabase_realtime add table datasets;
 alter publication supabase_realtime add table fridge_items;
 alter publication supabase_realtime add table onboarding_items;
 alter publication supabase_realtime add table onboarding_progress;
+alter publication supabase_realtime add table timers;
 
 -- ============================================================================
 -- 인덱스
 -- ============================================================================
 create index idx_schedules_lab   on schedules(lab_id);
+create index idx_schedules_user  on schedules(user_id);
 create index idx_equipment_lab   on equipment(lab_id);
 create index idx_supplies_lab    on supplies(lab_id);
 create index idx_notices_lab     on notices(lab_id);
@@ -487,3 +531,4 @@ create index idx_fridge_lab      on fridge_items(lab_id);
 create index idx_onboard_items_lab on onboarding_items(lab_id);
 create index idx_onboard_prog_lab  on onboarding_progress(lab_id);
 create index idx_onboard_prog_user on onboarding_progress(user_id);
+create index idx_timers_user       on timers(user_id);
