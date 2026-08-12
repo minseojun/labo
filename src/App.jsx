@@ -9,6 +9,7 @@ import EquipmentTab from './components/EquipmentTab'
 import TimerTab from './components/TimerTab'
 import SuppliesTab from './components/SuppliesTab'
 import Sidebar from './components/Sidebar'
+import ErrorBoundary from './components/ErrorBoundary'
 import { Icon } from './components/Icon'
 import { useCollection, useMembers } from './hooks/useSupabase'
 import ToastContainer from './components/ToastContainer'
@@ -287,7 +288,9 @@ export default function App() {
           <SuppliesTab labId={labId} supplies={suppliesHook.data} suppliesHook={suppliesHook} user={user} />
         )}
         {enabledModuleTabs.map(m => activeTab === m.key && (
-          <m.Screen key={m.key} labId={labId} user={user} />
+          <ErrorBoundary key={m.key}>
+            <m.Screen labId={labId} user={user} members={members} />
+          </ErrorBoundary>
         ))}
       </div>
 

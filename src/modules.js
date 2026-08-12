@@ -1,5 +1,9 @@
 import { Icon } from './components/Icon'
 import HazardLogScreen from './components/HazardLogScreen'
+import GpuReservationScreen from './components/GpuReservationScreen'
+import DatasetScreen from './components/DatasetScreen'
+import FridgeMapScreen from './components/FridgeMapScreen'
+import OnboardingChecklistScreen from './components/OnboardingChecklistScreen'
 
 // 기본 탭(홈 제외) — 랩마다 끄고 켤 수 있음. labs.disabled_tabs에 id가 들어가면 꺼짐(기본은 전부 켜짐)
 export const CORE_TABS = [
@@ -20,6 +24,38 @@ export const MODULES = [
     label: '위험물',
     description: '시약 유출·노출·화상 등 실험실 안전 사고를 기록하고 조회해요.',
     Screen: HazardLogScreen,
+  },
+  {
+    key: 'wet_lab_fridge_map',
+    domain: 'Wet Lab',
+    icon: Icon.Snowflake,
+    label: '냉장고 맵',
+    description: '냉장/냉동고 어디에 뭐가 있는지 위치와 유효기한을 검색해요.',
+    Screen: FridgeMapScreen,
+  },
+  {
+    key: 'dry_lab_gpu_reservation',
+    domain: 'Dry Lab',
+    icon: Icon.Server,
+    label: 'GPU 예약',
+    description: 'GPU 서버별 예약 캘린더와 사용중 알림을 확인해요.',
+    Screen: GpuReservationScreen,
+  },
+  {
+    key: 'dry_lab_datasets',
+    domain: 'Dry Lab',
+    icon: Icon.Database,
+    label: '데이터셋',
+    description: '공유 데이터셋의 경로·버전을 등록하고 조회해요.',
+    Screen: DatasetScreen,
+  },
+  {
+    key: 'lab_ops_onboarding',
+    domain: 'Lab Ops',
+    icon: Icon.ClipboardCheck,
+    label: '온보딩',
+    description: '신입 구성원용 안전교육·장비 이수 체크리스트를 관리해요.',
+    Screen: OnboardingChecklistScreen,
   },
 ]
 
