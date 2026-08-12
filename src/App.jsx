@@ -40,36 +40,48 @@ function LoadingScreen() {
   )
 }
 
+function notifyTimerDone(name) {
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification(`${name} 완료!`, { body: '실험이 완료되었습니다.' })
+  }
+  haptic.medium()
+}
+
+// endAt(완료 예정 절대 시각) 기준으로 남은 시간을 매번 새로 계산 — setInterval은
+// 화면이 꺼지거나 탭이 백그라운드로 밀리면 브라우저가 틱을 늦추거나 통째로 멈추는데,
+// "1초씩 빼기" 방식이면 그 지연이 그대로 오차로 쌓임. 대신 틱이 오든 늦게 오든
+// (endAt - now)로 다시 계산하면 실제 경과 시간과 항상 일치함
+function timeLeftFrom(t) {
+  if (!t.running || !t.endAt) return t.timeLeft
+  return Math.max(0, Math.round((t.endAt - Date.now()) / 1000))
+}
+
 // ===== 타이머 전역 관리 훅 =====
 function useTimers() {
   const [timers, setTimers] = useState([])
   const intervalsRef = useRef({})
 
-  // 타이머 틱 — 탭 전환해도 계속 돌아감
+  const stopInterval = useCallback((id) => {
+    clearInterval(intervalsRef.current[id])
+    delete intervalsRef.current[id]
+  }, [])
+
+  // 타이머 틱 — 탭 전환해도 계속 돌아감. 실제 남은 시간은 항상 endAt에서 다시 계산
   const startInterval = useCallback((id) => {
     if (intervalsRef.current[id]) return
     intervalsRef.current[id] = setInterval(() => {
       setTimers(prev => prev.map(t => {
         if (t.id !== id || !t.running) return t
-        const next = t.timeLeft - 1
+        const next = timeLeftFrom(t)
         if (next <= 0) {
-          clearInterval(intervalsRef.current[id])
-          delete intervalsRef.current[id]
-          // 브라우저 알림
-          if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification(`${t.name} 완료!`, { body: '실험이 완료되었습니다.' })
-          }
-          return { ...t, timeLeft: 0, running: false, done: true }
+          stopInterval(id)
+          notifyTimerDone(t.name)
+          return { ...t, timeLeft: 0, running: false, done: true, endAt: null }
         }
-        return { ...t, timeLeft: next }
+        return next === t.timeLeft ? t : { ...t, timeLeft: next }
       }))
     }, 1000)
-  }, [])
-
-  const stopInterval = useCallback((id) => {
-    clearInterval(intervalsRef.current[id])
-    delete intervalsRef.current[id]
-  }, [])
+  }, [stopInterval])
 
   const addTimer = useCallback((config) => {
     const id = 't' + Date.now()
@@ -82,6 +94,7 @@ function useTimers() {
       running: false,
       done: false,
       memo: '',
+      endAt: null,
     }])
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission()
@@ -92,11 +105,15 @@ function useTimers() {
     setTimers(prev => prev.map(t => {
       if (t.id !== id) return t
       const updated = { ...t, ...patch }
-      // running 상태 변화에 따라 interval 제어
-      if (patch.running === true) startInterval(id)
-      if (patch.running === false) stopInterval(id)
+      // running 상태 변화에 따라 interval 제어. 시작/재개 시점의 실제 시각으로
+      // endAt을 다시 잡아야 일시정지했다가 이어서 돌려도 오차가 안 생김
+      if (patch.running === true) {
+        updated.endAt = Date.now() + t.timeLeft * 1000
+        startInterval(id)
+      }
+      if (patch.running === false) { stopInterval(id); updated.endAt = null }
       // 리셋
-      if (patch.timeLeft === t.duration) stopInterval(id)
+      if (patch.timeLeft === t.duration) { stopInterval(id); updated.endAt = null }
       return updated
     }))
   }, [startInterval, stopInterval])
@@ -104,6 +121,33 @@ function useTimers() {
   const deleteTimer = useCallback((id) => {
     stopInterval(id)
     setTimers(prev => prev.filter(t => t.id !== id))
+  }, [stopInterval])
+
+  // 탭/앱이 백그라운드에 있는 동안엔 setInterval 자체가 통째로 멈출 수 있어서,
+  // 화면으로 돌아온 순간 즉시 한 번 다시 계산해서 "몰래 끝나 있던" 타이머를 바로 잡아냄
+  useEffect(() => {
+    const recompute = () => {
+      setTimers(prev => prev.map(t => {
+        if (!t.running) return t
+        const next = timeLeftFrom(t)
+        if (next <= 0) {
+          stopInterval(t.id)
+          notifyTimerDone(t.name)
+          return { ...t, timeLeft: 0, running: false, done: true, endAt: null }
+        }
+        return next === t.timeLeft ? t : { ...t, timeLeft: next }
+      }))
+    }
+    const onVisible = () => { if (!document.hidden) recompute() }
+    document.addEventListener('visibilitychange', onVisible)
+    let sub
+    if (Capacitor.isNativePlatform()) {
+      sub = CapacitorApp.addListener('resume', recompute)
+    }
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible)
+      sub?.then(s => s.remove())
+    }
   }, [stopInterval])
 
   // 언마운트 시 전체 정리
@@ -135,6 +179,7 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('home')
   const [showSidebar, setShowSidebar] = useState(false)
+  const [showModuleSheet, setShowModuleSheet] = useState(false)
   const [scrolled, setScrolled] = useState(false)
 
   // 타이머 — App 레벨에서 관리해서 탭 전환해도 유지
@@ -145,11 +190,12 @@ export default function App() {
     if (!Capacitor.isNativePlatform()) return
     const sub = CapacitorApp.addListener('backButton', () => {
       if (showSidebar) { setShowSidebar(false); return }
+      if (showModuleSheet) { setShowModuleSheet(false); return }
       if (activeTab !== 'home') { setActiveTab('home'); return }
       CapacitorApp.exitApp()
     })
     return () => { sub.then(s => s.remove()) }
-  }, [showSidebar, activeTab])
+  }, [showSidebar, showModuleSheet, activeTab])
 
   useEffect(() => {
     let active = true
@@ -217,10 +263,13 @@ export default function App() {
 
   const labId = user?.labId
   const enabledModuleTabs = MODULES.filter(m => isModuleEnabled(labInfo, m.key))
-  const visibleTabs = [
-    ...TABS.filter(t => t.id === 'home' || !labInfo?.disabledTabs?.includes(t.id)),
-    ...enabledModuleTabs.map(m => ({ id: m.key, icon: m.icon, label: m.label })),
-  ]
+  // 하단 탭바는 홈 + 기본 탭(최대 4개)으로 고정 — 랩이 모듈을 여러 개 켜도
+  // 탭이 계속 늘어나 엄지로 누르기 힘들어지지 않도록, 모듈은 전부 "더보기" 시트로 모음
+  const fixedTabs = TABS.filter(t => t.id === 'home' || !labInfo?.disabledTabs?.includes(t.id))
+  const activeModule = enabledModuleTabs.find(m => m.key === activeTab)
+  const visibleTabs = enabledModuleTabs.length > 0
+    ? [...fixedTabs, { id: '__more__', icon: activeModule?.icon || Icon.Grid, label: activeModule?.label || '더보기' }]
+    : fixedTabs
   const schedulesHook = useCollection(labId, 'schedules', 'date')
   const equipmentHook = useCollection(labId, 'equipment', 'created_at')
   const suppliesHook  = useCollection(labId, 'supplies', 'created_at')
@@ -295,27 +344,57 @@ export default function App() {
         ))}
       </div>
 
-      {/* 탭바 — 타이머 실행중이면 배지 표시 */}
+      {/* 탭바 — 타이머 실행중이면 배지 표시. 모듈이 있으면 마지막 슬롯은 "더보기" 시트를 염 */}
       <div className="tab-bar">
-        {visibleTabs.map(t => (
-          <button key={t.id} className={`tab-item${activeTab === t.id ? ' active' : ''}`}
-            onClick={() => { if (activeTab !== t.id) { haptic.selection(); setActiveTab(t.id) } }}
-            style={{ position: 'relative' }}>
-            <span className="tab-icon"><t.icon size={21} strokeWidth={activeTab === t.id ? 2 : 1.7} /></span>
-            <span className="tab-label">{t.label}</span>
-            {/* 타이머 실행 중 배지 */}
-            {t.id === 'timer' && runningCount > 0 && (
-              <div style={{
-                position: 'absolute', top: 4, right: '50%', transform: 'translateX(10px)',
-                width: 16, height: 16, borderRadius: '50%',
-                background: 'var(--red)', color: '#fff',
-                fontSize: 9, fontWeight: 600,
-                display: 'flex', alignItems: 'center', justifyContent: 'center'
-              }}>{runningCount}</div>
-            )}
-          </button>
-        ))}
+        {visibleTabs.map(t => {
+          const isActive = t.id === '__more__' ? !!activeModule : activeTab === t.id
+          return (
+            <button key={t.id} className={`tab-item${isActive ? ' active' : ''}`}
+              onClick={() => {
+                if (t.id === '__more__') { haptic.selection(); setShowModuleSheet(true); return }
+                if (activeTab !== t.id) { haptic.selection(); setActiveTab(t.id) }
+              }}
+              style={{ position: 'relative' }}>
+              <span className="tab-icon"><t.icon size={21} strokeWidth={isActive ? 2 : 1.7} /></span>
+              <span className="tab-label">{t.label}</span>
+              {/* 타이머 실행 중 배지 */}
+              {t.id === 'timer' && runningCount > 0 && (
+                <div style={{
+                  position: 'absolute', top: 4, right: '50%', transform: 'translateX(10px)',
+                  width: 16, height: 16, borderRadius: '50%',
+                  background: 'var(--red)', color: '#fff',
+                  fontSize: 9, fontWeight: 600,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}>{runningCount}</div>
+              )}
+            </button>
+          )
+        })}
       </div>
+
+      {showModuleSheet && (
+        <div className="sheet-backdrop" onClick={e => e.target === e.currentTarget && setShowModuleSheet(false)}>
+          <div className="sheet">
+            <div className="sheet-handle" />
+            <div className="sheet-title">모듈</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              {enabledModuleTabs.map(m => (
+                <button key={m.key} onClick={() => { haptic.selection(); setActiveTab(m.key); setShowModuleSheet(false) }}
+                  style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8,
+                    padding: '14px 14px', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
+                    border: `1.5px solid ${activeTab === m.key ? 'var(--green)' : 'var(--border)'}`,
+                    background: activeTab === m.key ? 'var(--green-ultra)' : 'var(--card)',
+                    borderRadius: 14,
+                  }}>
+                  <m.icon size={20} strokeWidth={1.7} style={{ color: activeTab === m.key ? 'var(--green)' : 'var(--text2)' }} />
+                  <span style={{ fontSize: 13, fontWeight: 650, color: activeTab === m.key ? 'var(--green)' : 'var(--text)' }}>{m.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {showSidebar && (
         <Sidebar user={user} labInfo={labInfo} members={members}
