@@ -4,7 +4,7 @@
   "webDir": "dist",
   "backgroundColor": "#F5F2EA",
   "ios": {
-    "contentInset": "always",
+    "contentInset": "never",
     "backgroundColor": "#F5F2EA"
   },
   "android": {
