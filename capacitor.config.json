@@ -11,6 +11,9 @@
     "backgroundColor": "#F5F2EA"
   },
   "plugins": {
+    "Keyboard": {
+      "resize": "none"
+    },
     "LocalNotifications": {
       "iconColor": "#1F9D6B"
     },
