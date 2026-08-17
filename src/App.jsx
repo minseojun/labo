@@ -13,6 +13,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 import { Avatar } from './components/Avatar'
 import { Icon } from './components/Icon'
 import { useLabRealtime } from './hooks/useSupabase'
+import { setSentryUser } from './sentry'
 import ToastContainer from './components/ToastContainer'
 import { toast } from './utils/toast'
 import { haptic } from './utils/haptics'
@@ -134,6 +135,9 @@ export default function App() {
   useEffect(() => {
     if (activeTab !== 'home' && (user?.hiddenModules || []).includes(activeTab)) setActiveTab('home')
   }, [activeTab, user?.hiddenModules])
+
+  // 에러가 어느 사용자한테서 났는지 알아야 재현·문의 대응이 되니, 로그인/로그아웃에 맞춰 동기화
+  useEffect(() => { setSentryUser(user) }, [user?.id])
 
   const labId = user?.labId
   // 모든 탭·모듈은 항상 존재함 — 각자 자기 탭바에 뭘 보이게 할지만 개인 취향으로 조절
