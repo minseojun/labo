@@ -2,30 +2,30 @@
   "appId": "com.labo.app",
   "appName": "LABO",
   "webDir": "dist",
-  "backgroundColor": "#F5F2EA",
+  "backgroundColor": "#F1F1F4",
   "ios": {
-    "contentInset": "always",
-    "backgroundColor": "#F5F2EA"
+    "contentInset": "never",
+    "backgroundColor": "#F1F1F4"
   },
   "android": {
-    "backgroundColor": "#F5F2EA"
+    "backgroundColor": "#F1F1F4"
   },
   "plugins": {
     "Keyboard": {
       "resize": "none"
     },
     "LocalNotifications": {
-      "iconColor": "#1F9D6B"
+      "iconColor": "#0E6B45"
     },
     "SplashScreen": {
       "launchShowDuration": 600,
-      "backgroundColor": "#1F9D6B",
+      "backgroundColor": "#0E6B45",
       "androidSplashResourceName": "splash",
       "showSpinner": false
     },
     "StatusBar": {
       "style": "DARK",
-      "backgroundColor": "#F5F2EA"
+      "backgroundColor": "#F1F1F4"
     }
   }
 }

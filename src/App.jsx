@@ -220,8 +220,11 @@ export default function App() {
         ))}
       </div>
 
-      {/* 탭바 — 타이머 실행중이면 배지 표시 */}
-      <div className="tab-bar">
+      {/* 탭바 — 타이머 실행중이면 배지 표시.
+          탭이 많아지면(모듈을 여러 개 켜면) flex:1로 억지로 욱여넣으면 라벨이
+          두 줄로 깨지면서 탭바 전체 높이가 들쭉날쭉해짐 — 6개 넘으면 각 탭을
+          고정 너비로 두고 옆으로 스크롤하게 바꿔서 항상 한 줄을 유지함 */}
+      <div className={`tab-bar${visibleTabs.length > 6 ? ' scrollable' : ''}`}>
         {visibleTabs.map(t => (
           <button key={t.id} className={`tab-item${activeTab === t.id ? ' active' : ''}`}
             onClick={() => { if (activeTab !== t.id) { haptic.selection(); setActiveTab(t.id) } }}

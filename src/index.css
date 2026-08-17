@@ -3,13 +3,13 @@ button, a { -webkit-touch-callout: none; user-select: none; }
 html { overscroll-behavior-y: none; }
 
 :root {
-  --green: #1F9D6B;
-  --green-dark: #157A52;
-  --green-mid: #23B07A;
-  --green-light: #E6F5EE;
-  --green-ultra: #F0FAF5;
+  --green: #0E6B45;
+  --green-dark: #0A4F34;
+  --green-mid: #14805A;
+  --green-light: #E1EDE7;
+  --green-ultra: #F0F4F2;
 
-  --bg: #F5F2EA;
+  --bg: #F1F1F4;
   --card: #FFFFFF;
 
   --text: #0E1117;
@@ -25,17 +25,17 @@ html { overscroll-behavior-y: none; }
   --blue: #3279F5;
   --blue-light: #E0EBFF;
 
-  --border: #E6E2D6;
+  --border: #E1E1E6;
 
   --shadow-xs: 0 1px 3px rgba(14,17,23,0.05);
   --shadow-sm: 0 2px 8px rgba(14,17,23,0.07), 0 0 1px rgba(14,17,23,0.03);
   --shadow-md: 0 4px 16px rgba(14,17,23,0.08), 0 1px 4px rgba(14,17,23,0.04);
   --shadow-lg: 0 8px 30px rgba(14,17,23,0.10), 0 2px 8px rgba(14,17,23,0.04);
   --shadow-xl: 0 20px 60px rgba(14,17,23,0.13), 0 8px 20px rgba(14,17,23,0.06);
-  --shadow-green: 0 4px 18px rgba(31,157,107,0.38);
+  --shadow-green: 0 4px 18px rgba(14,107,69,0.38);
 
-  --radius: 16px;
-  --radius-md: 14px;
+  --radius: 14px;
+  --radius-md: 12px;
   --radius-sm: 10px;
   --radius-xs: 8px;
 }
