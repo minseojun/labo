@@ -190,7 +190,7 @@ export default function Sidebar({ user, labInfo, members, onClose, onUserUpdate,
       <div style={{ position: 'fixed', top: 0, right: 'max(0px, calc((100vw - 480px) / 2))', bottom: 0, width: 'min(86%, 340px)', background: 'var(--bg)', zIndex: 301, display: 'flex', flexDirection: 'column', animation: 'slideInRight .25s ease', boxShadow: '-4px 0 24px rgba(0,0,0,0.12)' }}>
 
         {/* 헤더 */}
-        <div style={{ padding: 'calc(48px + env(safe-area-inset-top, 0px)) 20px 20px', background: 'var(--green)', color: '#fff', position: 'relative' }}>
+        <div style={{ padding: 'calc(48px + env(safe-area-inset-top, 0px)) 20px 20px', background: 'var(--green-dark)', color: '#fff', position: 'relative' }}>
           <button onClick={onClose} style={{ position: 'absolute', top: 'calc(16px + env(safe-area-inset-top, 0px))', right: 16, background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', width: 32, height: 32, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icon.X size={16} strokeWidth={2} /></button>
           <div style={{ width: 68, height: 68, borderRadius: '50%', overflow: 'hidden', background: 'rgba(255,255,255,0.2)', border: '2px solid rgba(255,255,255,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 34, marginBottom: 12 }}>
             <Avatar value={avatar} fallback={user.name?.slice(-1)} />
