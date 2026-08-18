@@ -42,6 +42,7 @@ export default function DatasetScreen({ labId, user }) {
   const [importText, setImportText] = useState('')
   const [importing, setImporting] = useState(false)
   const [sel, setSel] = useState(null)
+  const [editTarget, setEditTarget] = useState(null)
   const [query, setQuery] = useState('')
   const [form, setForm] = useState({ name: '', path: '', version: '', description: '' })
 
@@ -71,6 +72,26 @@ export default function DatasetScreen({ labId, user }) {
     try {
       await hook.remove(sel.id)
       setSel(null)
+    } catch (e) { /* error shown by hook */ }
+  }
+
+  const openEditDataset = (ds) => {
+    setEditTarget({ ...ds, version: ds.version || '', description: ds.description || '' })
+    setSel(null)
+  }
+
+  const saveEditDataset = async () => {
+    const name = editTarget.name.trim()
+    const path = editTarget.path.trim()
+    if (!name) { toast.error('데이터셋 이름을 입력해주세요.'); return }
+    if (!path) { toast.error('경로를 입력해주세요.'); return }
+    if (name.length > 100) { toast.error('이름은 100자 이내로 입력해주세요.'); return }
+    try {
+      await hook.update(editTarget.id, {
+        name, path, version: editTarget.version.trim() || 'v1', description: editTarget.description.trim(),
+      })
+      setEditTarget(null)
+      toast.success('수정했어요')
     } catch (e) { /* error shown by hook */ }
   }
 
@@ -242,13 +263,49 @@ export default function DatasetScreen({ labId, user }) {
               </div>
             )}
             {(isAdmin || sel.owner === user.name) && (
-              <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+              <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border)', display: 'flex', gap: 8 }}>
+                <button onClick={() => openEditDataset(sel)}
+                  style={{ flex: 1, padding: 10, background: 'var(--green-light)', color: 'var(--green)', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer', fontSize: 13 }}>
+                  수정
+                </button>
                 <button onClick={deleteDataset}
-                  style={{ width: '100%', padding: 10, background: 'var(--red-light)', color: 'var(--red)', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer', fontSize: 13 }}>
-                  데이터셋 삭제
+                  style={{ flex: 1, padding: 10, background: 'var(--red-light)', color: 'var(--red)', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer', fontSize: 13 }}>
+                  삭제
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {editTarget && (
+        <div className="sheet-backdrop" onClick={e => e.target === e.currentTarget && setEditTarget(null)}>
+          <div className="sheet">
+            <div className="sheet-handle" />
+            <div className="sheet-title">데이터셋 수정</div>
+            <div className="form-group">
+              <label className="form-label">이름</label>
+              <input className="form-input" value={editTarget.name} maxLength={100}
+                onChange={e => setEditTarget(p => ({ ...p, name: e.target.value }))} autoFocus />
+            </div>
+            <div className="form-group">
+              <label className="form-label">경로</label>
+              <input className="form-input" value={editTarget.path} maxLength={300}
+                onChange={e => setEditTarget(p => ({ ...p, path: e.target.value }))} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">버전 (선택)</label>
+              <input className="form-input" value={editTarget.version} maxLength={30}
+                onChange={e => setEditTarget(p => ({ ...p, version: e.target.value }))}
+                placeholder="예: v2" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">설명 (선택)</label>
+              <input className="form-input" value={editTarget.description} maxLength={300}
+                onChange={e => setEditTarget(p => ({ ...p, description: e.target.value }))}
+                placeholder="예: 라벨 오류 정리, train/val 재분할" />
+            </div>
+            <button className="btn-primary" onClick={saveEditDataset}>저장하기</button>
           </div>
         </div>
       )}

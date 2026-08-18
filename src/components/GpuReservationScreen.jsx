@@ -4,6 +4,8 @@ import { supabase } from '../supabase'
 import { toast } from '../utils/toast'
 import { notifications } from '../utils/notifications'
 import { Icon } from './Icon'
+import { fmtDate, getWeekDates } from '../utils'
+import { DAYS } from '../mockData'
 
 const toISO = (date, time) => new Date(`${date}T${time}:00`).toISOString()
 const fmtRange = (startAt, endAt) => {
@@ -13,9 +15,88 @@ const fmtRange = (startAt, endAt) => {
   return `${d} ${t(s)} ~ ${t(e)}`
 }
 
+// 서버별로 흩어져 있던 예약을 날짜 하나로 모아서 보여주는 주간 캘린더 —
+// "이번 주에 언제가 비어있지"를 서버를 하나씩 눌러보지 않고 한눈에 보려고 둠.
+// 예약은 항상 같은 날 안에서 시작·종료하므로(addReservation 참고) 날짜 하나로
+// 묶어도 걸치는 예약을 놓치지 않음
+function GpuCalendar({ servers, reservations, onSelectServer }) {
+  const [baseDate, setBaseDate] = useState(new Date())
+  const [selDate, setSelDate] = useState(fmtDate(new Date()))
+  const weekDates = getWeekDates(baseDate)
+
+  const onDate = (ds) => reservations
+    .filter(r => fmtDate(new Date(r.startAt)) === ds)
+    .sort((a, b) => new Date(a.startAt) - new Date(b.startAt))
+
+  const dayReservations = onDate(selDate)
+  const isToday = selDate === fmtDate(new Date())
+
+  return (
+    <div>
+      <div className="week-nav">
+        <span style={{ fontWeight: 600, fontSize: 15 }}>{baseDate.getFullYear()}년 {baseDate.getMonth() + 1}월</span>
+        <div style={{ display: 'flex', gap: 2 }}>
+          <button onClick={() => { const d = new Date(baseDate); d.setDate(d.getDate() - 7); setBaseDate(d) }}
+            style={{ background: 'var(--bg)', border: 'none', cursor: 'pointer', fontSize: 16, color: 'var(--text2)', width: 30, height: 30, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>‹</button>
+          <button onClick={() => { const t = new Date(); setBaseDate(t); setSelDate(fmtDate(t)) }}
+            style={{ background: 'var(--bg)', border: 'none', cursor: 'pointer', fontSize: 11.5, fontWeight: 600, color: 'var(--text2)', padding: '0 11px', height: 30, borderRadius: 9 }}>오늘</button>
+          <button onClick={() => { const d = new Date(baseDate); d.setDate(d.getDate() + 7); setBaseDate(d) }}
+            style={{ background: 'var(--bg)', border: 'none', cursor: 'pointer', fontSize: 16, color: 'var(--text2)', width: 30, height: 30, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>›</button>
+        </div>
+      </div>
+
+      <div className="week-days">
+        {weekDates.map((d, i) => {
+          const ds = fmtDate(d)
+          const today = ds === fmtDate(new Date())
+          const sel = ds === selDate
+          const count = onDate(ds).length
+          return (
+            <div key={i} className="day-col" onClick={() => setSelDate(ds)}>
+              <div className="day-label">{DAYS[d.getDay()]}</div>
+              <div className={`day-num${today ? ' today' : sel ? ' selected' : ''}`}>{d.getDate()}</div>
+              <div style={{ display: 'flex', gap: 3, justifyContent: 'center', minHeight: 8 }}>
+                {count > 0 && !today && <div className="day-dot" />}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      <div style={{ padding: '12px 16px 4px', fontSize: 12, fontWeight: 600, color: 'var(--text2)' }}>
+        {isToday ? '오늘' : selDate.replace(/^\d{4}-/, '').replace('-', '/')} 예약 {dayReservations.length > 0 ? `${dayReservations.length}건` : ''}
+      </div>
+
+      {dayReservations.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '32px 20px', color: 'var(--text2)' }}>
+          <Icon.Server size={26} strokeWidth={1.4} style={{ marginBottom: 10, opacity: .5 }} />
+          <div style={{ fontSize: 13, fontWeight: 500 }}>이 날은 예약이 없어요</div>
+        </div>
+      ) : dayReservations.map(r => {
+        const server = servers.find(sv => sv.id === r.serverId)
+        return (
+          <div key={r.id} className="sched-item" onClick={() => server && onSelectServer(server)}>
+            <div className="sched-bar" style={{ background: 'var(--purple)' }} />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 500, fontSize: 14 }}>{server?.name || '삭제된 서버'}</div>
+              <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>
+                {r.userName}{r.memo ? ` · ${r.memo}` : ''}
+              </div>
+            </div>
+            <span style={{ fontSize: 11, color: 'var(--text2)', whiteSpace: 'nowrap' }}>
+              {new Date(r.startAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })} ~ {new Date(r.endAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function GpuReservationScreen({ labId, user }) {
   const serversHook = useCollection(labId, 'gpu_servers', 'created_at', true)
   const resHook = useCollection(labId, 'gpu_reservations', 'start_at', true)
+  const [view, setView] = useState('servers')
   const [selServer, setSelServer] = useState(null)
   const [showAddServer, setShowAddServer] = useState(false)
   const [showReserve, setShowReserve] = useState(false)
@@ -121,66 +202,79 @@ export default function GpuReservationScreen({ labId, user }) {
       </div>
 
       {servers.length > 0 && (
-        <div className="supply-summary">
-          <div className="supply-stat">
-            <div className="n">{servers.length}</div>
-            <div className="l">전체 서버</div>
-          </div>
-          <div className="supply-stat">
-            <div className="n" style={{ color: '#1a7a52' }}>{availableCount}</div>
-            <div className="l">예약가능</div>
-          </div>
-          <div className="supply-stat" style={{ borderColor: busyCount > 0 ? '#f8c5c5' : 'var(--border)' }}>
-            <div className="n" style={{ color: '#c23b3b' }}>{busyCount}</div>
-            <div className="l">사용중</div>
-          </div>
+        <div className="seg" style={{ margin: '0 16px 14px' }}>
+          <button className={`seg-btn${view === 'servers' ? ' on' : ''}`} onClick={() => setView('servers')}>서버</button>
+          <button className={`seg-btn${view === 'calendar' ? ' on' : ''}`} onClick={() => setView('calendar')}>캘린더</button>
         </div>
       )}
 
-      {servers.length > 0 && (
-        <div style={{ padding: '0 16px 12px', position: 'relative' }}>
-          <Icon.Search size={15} strokeWidth={2} style={{ position: 'absolute', left: 30, top: '50%', transform: 'translateY(-50%)', color: 'var(--text3)', pointerEvents: 'none' }} />
-          <input className="form-input" style={{ paddingLeft: 34 }} value={query} onChange={e => setQuery(e.target.value)}
-            placeholder="서버 이름, 스펙으로 검색" />
-        </div>
-      )}
-
-      {servers.length > 0 && (
-        <div className="filter-row">
-          {[['all', '전체'], ['available', '예약가능'], ['busy', '사용중']].map(([v, l]) => (
-            <div key={v} className={`filter-chip${filter === v ? ' active' : ''}`} onClick={() => setFilter(v)}>{l}</div>
-          ))}
-        </div>
-      )}
-
-      {serversHook.loading ? null : servers.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text2)' }}>
-          <Icon.Server size={30} strokeWidth={1.4} style={{ marginBottom: 12, opacity: .5 }} />
-          <div style={{ fontWeight: 500 }}>등록된 서버가 없습니다</div>
-          {isAdmin && <div style={{ fontSize: 12, marginTop: 4 }}>+ 서버 추가 버튼으로 등록하세요</div>}
-        </div>
-      ) : filteredServers.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text2)' }}>
-          <Icon.Server size={30} strokeWidth={1.4} style={{ marginBottom: 12, opacity: .5 }} />
-          <div style={{ fontWeight: 500 }}>검색 결과가 없습니다</div>
-        </div>
-      ) : filteredServers.map(sv => {
-        const active = activeOf(sv.id)
-        return (
-          <div key={sv.id} className="equip-card" onClick={() => setSelServer(sv)}>
-            <div className="equip-icon" style={{ background: active ? 'var(--red-light)' : 'var(--green-light)', color: active ? 'var(--red)' : 'var(--green)' }}>
-              <Icon.Server size={20} />
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 600, fontSize: 14 }}>{sv.name}</div>
-              <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>
-                {sv.spec || '스펙 미등록'}{active ? ` · ${active.userName} 사용중` : ''}
+      {view === 'calendar' && servers.length > 0 ? (
+        <GpuCalendar servers={servers} reservations={reservations} onSelectServer={setSelServer} />
+      ) : (
+        <>
+          {servers.length > 0 && (
+            <div className="supply-summary">
+              <div className="supply-stat">
+                <div className="n">{servers.length}</div>
+                <div className="l">전체 서버</div>
+              </div>
+              <div className="supply-stat">
+                <div className="n" style={{ color: '#1a7a52' }}>{availableCount}</div>
+                <div className="l">예약가능</div>
+              </div>
+              <div className="supply-stat" style={{ borderColor: busyCount > 0 ? '#f8c5c5' : 'var(--border)' }}>
+                <div className="n" style={{ color: '#c23b3b' }}>{busyCount}</div>
+                <div className="l">사용중</div>
               </div>
             </div>
-            <span className={`chip ${active ? 'chip-red' : 'chip-green'}`}>{active ? '사용중' : '예약가능'}</span>
-          </div>
-        )
-      })}
+          )}
+
+          {servers.length > 0 && (
+            <div style={{ padding: '0 16px 12px', position: 'relative' }}>
+              <Icon.Search size={15} strokeWidth={2} style={{ position: 'absolute', left: 30, top: '50%', transform: 'translateY(-50%)', color: 'var(--text3)', pointerEvents: 'none' }} />
+              <input className="form-input" style={{ paddingLeft: 34 }} value={query} onChange={e => setQuery(e.target.value)}
+                placeholder="서버 이름, 스펙으로 검색" />
+            </div>
+          )}
+
+          {servers.length > 0 && (
+            <div className="filter-row">
+              {[['all', '전체'], ['available', '예약가능'], ['busy', '사용중']].map(([v, l]) => (
+                <div key={v} className={`filter-chip${filter === v ? ' active' : ''}`} onClick={() => setFilter(v)}>{l}</div>
+              ))}
+            </div>
+          )}
+
+          {serversHook.loading ? null : servers.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text2)' }}>
+              <Icon.Server size={30} strokeWidth={1.4} style={{ marginBottom: 12, opacity: .5 }} />
+              <div style={{ fontWeight: 500 }}>등록된 서버가 없습니다</div>
+              {isAdmin && <div style={{ fontSize: 12, marginTop: 4 }}>+ 서버 추가 버튼으로 등록하세요</div>}
+            </div>
+          ) : filteredServers.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text2)' }}>
+              <Icon.Server size={30} strokeWidth={1.4} style={{ marginBottom: 12, opacity: .5 }} />
+              <div style={{ fontWeight: 500 }}>검색 결과가 없습니다</div>
+            </div>
+          ) : filteredServers.map(sv => {
+            const active = activeOf(sv.id)
+            return (
+              <div key={sv.id} className="equip-card" onClick={() => setSelServer(sv)}>
+                <div className="equip-icon" style={{ background: active ? 'var(--red-light)' : 'var(--green-light)', color: active ? 'var(--red)' : 'var(--green)' }}>
+                  <Icon.Server size={20} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>{sv.name}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>
+                    {sv.spec || '스펙 미등록'}{active ? ` · ${active.userName} 사용중` : ''}
+                  </div>
+                </div>
+                <span className={`chip ${active ? 'chip-red' : 'chip-green'}`}>{active ? '사용중' : '예약가능'}</span>
+              </div>
+            )
+          })}
+        </>
+      )}
 
       {selServer && (
         <div className="sheet-backdrop" onClick={e => e.target === e.currentTarget && setSelServer(null)}>
