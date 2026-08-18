@@ -135,6 +135,15 @@ export function scheduleMemberWorkload(schedule, memberName) {
   return schedule.totalCount[memberName] || 0
 }
 
+// 잡무 발생일별 완료/"오늘 못함" 상태 — 발생일이 실제 행이 아니라 반복 규칙으로
+// 매번 계산되는 가상의 날짜라서, 상태를 schedules 행에 날짜 배열로 들고 있음
+export function isTaskDone(task, dateStr) {
+  return (task.doneDates || []).includes(dateStr)
+}
+export function isTaskOpen(task, dateStr) {
+  return (task.openDates || []).includes(dateStr)
+}
+
 // 잡무 전체를 전원이 돌아가며 맡도록 재배정. 한 사람이 잡무 하나를 통째로 맡는
 // 1:1 방식은 반복 주기가 서로 다른 잡무 사이에서 부담이 크게 벌어질 수밖에 없어서,
 // 잡무마다 현재 구성원 전원을 후보로 묶어 놓으면 computeSchedule이 알아서

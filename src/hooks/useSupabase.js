@@ -27,7 +27,7 @@ export function toSnakeItem(item) {
 }
 
 // labs/{labId}/{table} 성격의 컬렉션 — Firestore useCollection과 동일한 인터페이스.
-// 도메인 모듈 화면(위험물/GPU예약/데이터셋/냉장고맵/온보딩)처럼 그 탭을 보고 있을
+// 도메인 모듈 화면(위험물/GPU예약/데이터셋/온보딩)처럼 그 탭을 보고 있을
 // 때만 잠깐 켜지는 컬렉션에 씀 — 항상 켜져 있는 핵심 데이터는 아래 useLabRealtime이
 // 채널을 공유해서 더 적은 연결로 처리함
 //

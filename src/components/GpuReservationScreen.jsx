@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useCollection } from '../hooks/useSupabase'
+import { supabase } from '../supabase'
 import { toast } from '../utils/toast'
 import { notifications } from '../utils/notifications'
 import { Icon } from './Icon'
@@ -81,6 +82,16 @@ export default function GpuReservationScreen({ labId, user }) {
         await notifications.ensurePermission()
         notifications.scheduleAt(`gpu-res-${created.id}`, `${selServer.name} 예약 시작`,
           '예약하신 GPU 서버 사용 시간이 시작됐어요.', new Date(startAt))
+
+        // 예약 내용을 내 개인 일정에도 자동으로 남겨둠 — 일정탭에서 다른 할 일이랑
+        // 같이 한눈에 보이게. 기본 비공개(나만 보임)라 다른 사람 일정엔 안 나타남.
+        // 나중에 예약을 취소할 때 이 일정도 같이 지우려고 schedule_id로 연결해둠
+        const { data: schedRow, error: schedError } = await supabase.from('schedules').insert({
+          lab_id: labId, name: `GPU 예약 · ${selServer.name}`, type: 'mine',
+          date: resForm.date, time: resForm.startTime, assignee: user.name, user_id: user.id, visible: false,
+        }).select().single()
+        if (schedError) console.error(schedError)
+        else await supabase.from('gpu_reservations').update({ schedule_id: schedRow.id }).eq('id', created.id)
       }
     } catch (e) { /* error shown by hook */ }
   }
@@ -91,6 +102,7 @@ export default function GpuReservationScreen({ labId, user }) {
     try {
       await resHook.remove(r.id)
       notifications.cancel(`gpu-res-${r.id}`)
+      if (r.scheduleId) await supabase.from('schedules').delete().eq('id', r.scheduleId)
     } catch (e) { /* error shown by hook */ }
   }
 
