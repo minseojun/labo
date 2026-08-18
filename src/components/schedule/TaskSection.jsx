@@ -377,10 +377,13 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
                 {task.note && <div className="tsk-note">{task.note}</div>}
               </div>
               {open ? (
-                <button onClick={e => claimOpenTask(task, e)} style={{
-                  flexShrink: 0, padding: '7px 12px', background: 'var(--green)', color: '#fff',
-                  border: 'none', borderRadius: 20, fontSize: 11.5, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
-                }}>제가 할게요</button>
+                <>
+                  <button onClick={e => claimOpenTask(task, e)} style={{
+                    flexShrink: 0, padding: '7px 12px', background: 'var(--green)', color: '#fff',
+                    border: 'none', borderRadius: 20, fontSize: 11.5, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
+                  }}>제가 할게요</button>
+                  <button className="tsk-del" onClick={e => { e.stopPropagation(); deleteTask(task) }} aria-label="삭제">✕</button>
+                </>
               ) : (
                 <>
                   {isMine && !done && (
