@@ -1,13 +1,44 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../supabase'
 import { toCamelRow } from '../hooks/useSupabase'
-import { statusLabel, statusBg, statusColor, fmtDate } from '../utils'
+import { statusLabel, statusBg, statusColor, fmtDate, SUPPLY_CATEGORIES, categoryLabel, categoryColor } from '../utils'
 import { toast } from '../utils/toast'
 import { Icon } from './Icon'
 
 const daysUntil = (dateStr) => {
   if (!dateStr) return null
   return Math.ceil((new Date(dateStr) - new Date(fmtDate(new Date()))) / 86400000)
+}
+
+const CATEGORY_ICON = {
+  fridge: Icon.Snowflake, freezer: Icon.Snowflake, solvent: Icon.Flask,
+  powder: Icon.Flask, consumable: Icon.Package, other: Icon.Package,
+}
+
+// 냉장고맵처럼 비슷한 소모품끼리 한 칸에 묶어 보여주기 위한 카테고리 선택 위젯
+function CategoryPicker({ value, onChange }) {
+  return (
+    <div className="form-group">
+      <label className="form-label">카테고리</label>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+        {SUPPLY_CATEGORIES.map(([v, l]) => {
+          const on = value === v
+          const color = categoryColor(v)
+          const Ico = CATEGORY_ICON[v]
+          return (
+            <button key={v} type="button" onClick={() => onChange(v)} style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+              padding: '9px 4px', border: `1.5px solid ${on ? color : 'var(--border)'}`, borderRadius: 8,
+              background: on ? `${color}1A` : 'var(--card)', cursor: 'pointer', fontFamily: 'inherit',
+            }}>
+              <Ico size={15} strokeWidth={1.8} style={{ color: on ? color : 'var(--text2)' }} />
+              <span style={{ fontSize: 10.5, fontWeight: 600, color: on ? color : 'var(--text2)', textAlign: 'center', lineHeight: 1.2 }}>{l}</span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
 // supply_history는 별도 테이블이라 필요한 만큼만 가져오면 되고, 소모품 하나를
@@ -51,7 +82,7 @@ function SkeletonRow() {
 
 export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
   const [showAdd, setShowAdd] = useState(false)
-  const [form, setForm] = useState({ name: '', spec: '', status: 'green', location: '', expiresAt: '' })
+  const [form, setForm] = useState({ name: '', spec: '', status: 'green', category: 'other', location: '', expiresAt: '' })
   const [sel, setSel] = useState(null)
   const [editTarget, setEditTarget] = useState(null)
   const [query, setQuery] = useState('')
@@ -86,7 +117,7 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
     try {
       await suppliesHook.add({ ...form, name, location: form.location.trim() || null, expiresAt: form.expiresAt || null })
       setShowAdd(false)
-      setForm({ name: '', spec: '', status: 'green', location: '', expiresAt: '' })
+      setForm({ name: '', spec: '', status: 'green', category: 'other', location: '', expiresAt: '' })
     } catch (e) {
       // error shown by hook
     }
@@ -103,7 +134,7 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
   }
 
   const openEditSupply = (s) => {
-    setEditTarget({ ...s, location: s.location || '', expiresAt: s.expiresAt || '' })
+    setEditTarget({ ...s, category: s.category || 'other', location: s.location || '', expiresAt: s.expiresAt || '' })
     setSel(null)
   }
 
@@ -113,7 +144,7 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
     if (name.length > 100) { toast.error('이름은 100자 이내로 입력해주세요.'); return }
     try {
       await suppliesHook.update(editTarget.id, {
-        name, spec: editTarget.spec.trim(),
+        name, spec: editTarget.spec.trim(), category: editTarget.category,
         location: editTarget.location.trim() || null, expiresAt: editTarget.expiresAt || null,
       })
       setEditTarget(null)
@@ -130,6 +161,11 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
   const q = query.trim().toLowerCase()
   const filtered = !q ? supplies : supplies.filter(s =>
     s.name?.toLowerCase().includes(q) || s.spec?.toLowerCase().includes(q) || s.location?.toLowerCase().includes(q))
+
+  // 냉장고맵처럼 비슷한 소모품끼리 한 칸에 묶어서 보여줌 — 항목이 없는 카테고리는 숨김
+  const grouped = SUPPLY_CATEGORIES
+    .map(([value, label]) => ({ value, label, items: filtered.filter(s => (s.category || 'other') === value) }))
+    .filter(g => g.items.length > 0)
 
   return (
     <div>
@@ -178,26 +214,41 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
           <div style={{ fontWeight: 500 }}>{q ? '검색 결과가 없습니다' : '등록된 소모품이 없습니다'}</div>
         </div>
       ) : (
-        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', margin: '0 16px 12px', overflow: 'hidden' }}>
-          {filtered.map(s => {
-            const d = daysUntil(s.expiresAt)
-            const soon = d !== null && d <= 14
+        <div style={{ margin: '0 16px 12px' }}>
+          {grouped.map(g => {
+            const Ico = CATEGORY_ICON[g.value]
+            const color = categoryColor(g.value)
             return (
-              <div key={s.id} className="supply-row" onClick={() => setSel(s)}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 500, fontSize: 13 }}>{s.name}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {[s.spec, s.location].filter(Boolean).join(' · ')}
-                  </div>
+              <div key={g.value} style={{ marginBottom: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 4px 8px', fontSize: 12.5, fontWeight: 700, color }}>
+                  <Ico size={14} strokeWidth={2} />
+                  {g.label}
+                  <span style={{ fontWeight: 500, color: 'var(--text3)' }}>{g.items.length}개</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                  {soon && <span className="chip chip-red">{d <= 0 ? '만료' : `D-${d}`}</span>}
-                  <span style={{ fontSize: 11, fontWeight: 600, color: statusColor(s.status) }}>{statusLabel(s.status)}</span>
-                  <div className="traffic-btns" onClick={e => e.stopPropagation()}>
-                    <div className={`traffic-btn g${s.status === 'green' ? ' active' : ''}`} onClick={() => changeStatus(s.id, 'green', s.status)} />
-                    <div className={`traffic-btn y${s.status === 'yellow' ? ' active' : ''}`} onClick={() => changeStatus(s.id, 'yellow', s.status)} />
-                    <div className={`traffic-btn r${s.status === 'red' ? ' active' : ''}`} onClick={() => changeStatus(s.id, 'red', s.status)} />
-                  </div>
+                <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+                  {g.items.map(s => {
+                    const d = daysUntil(s.expiresAt)
+                    const soon = d !== null && d <= 14
+                    return (
+                      <div key={s.id} className="supply-row" onClick={() => setSel(s)}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 500, fontSize: 13 }}>{s.name}</div>
+                          <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {[s.spec, s.location].filter(Boolean).join(' · ')}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                          {soon && <span className="chip chip-red">{d <= 0 ? '만료' : `D-${d}`}</span>}
+                          <span style={{ fontSize: 11, fontWeight: 600, color: statusColor(s.status) }}>{statusLabel(s.status)}</span>
+                          <div className="traffic-btns" onClick={e => e.stopPropagation()}>
+                            <div className={`traffic-btn g${s.status === 'green' ? ' active' : ''}`} onClick={() => changeStatus(s.id, 'green', s.status)} />
+                            <div className={`traffic-btn y${s.status === 'yellow' ? ' active' : ''}`} onClick={() => changeStatus(s.id, 'yellow', s.status)} />
+                            <div className={`traffic-btn r${s.status === 'red' ? ' active' : ''}`} onClick={() => changeStatus(s.id, 'red', s.status)} />
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )
@@ -218,6 +269,7 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
                 <div style={{ fontSize: 12, color: 'var(--text2)' }}>{sel.spec}</div>
               </div>
             </div>
+            <div className="log-item"><span style={{ color: 'var(--text2)' }}>카테고리</span><span style={{ color: categoryColor(sel.category), fontWeight: 600 }}>{categoryLabel(sel.category)}</span></div>
             {sel.location && <div className="log-item"><span style={{ color: 'var(--text2)' }}>보관 위치</span><span>{sel.location}</span></div>}
             {sel.expiresAt && (
               <div className="log-item">
@@ -277,6 +329,7 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
                 onChange={e => setEditTarget(p => ({ ...p, spec: e.target.value }))}
                 placeholder="예: 500ml, 10개입" />
             </div>
+            <CategoryPicker value={editTarget.category} onChange={v => setEditTarget(p => ({ ...p, category: v }))} />
             <div className="form-group">
               <label className="form-label">보관 위치 (선택)</label>
               <input className="form-input" value={editTarget.location} maxLength={60}
@@ -310,6 +363,7 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
                 onChange={e => setForm(p => ({ ...p, spec: e.target.value }))}
                 placeholder="예: 500ml, 10개입" />
             </div>
+            <CategoryPicker value={form.category} onChange={v => setForm(p => ({ ...p, category: v }))} />
             <div className="form-group">
               <label className="form-label">보관 위치 (선택)</label>
               <input className="form-input" value={form.location} maxLength={60}

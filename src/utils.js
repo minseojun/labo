@@ -30,6 +30,27 @@ export function statusColor(s) {
   return s === 'green' ? '#1a7a52' : s === 'yellow' ? '#b97b10' : '#c23b3b'
 }
 
+// 소모품 카테고리 — 재질(용매/분말)보다 "어떻게 찾는지"를 우선해서, 냉장/냉동
+// 보관이 필요한 건 재질과 무관하게 무조건 냉장/냉동으로 묶고, 상온 보관되는
+// 것만 용매/분말로 나눔 (냉장 시약이 용매인지 분말인지로 헷갈릴 일이 없게)
+export const SUPPLY_CATEGORIES = [
+  ['fridge', '냉장 보관'],
+  ['freezer', '냉동 보관'],
+  ['solvent', '용매'],
+  ['powder', '분말/고체 시약'],
+  ['consumable', '소모품·기구'],
+  ['other', '기타'],
+]
+export function categoryLabel(cat) {
+  return SUPPLY_CATEGORIES.find(([v]) => v === cat)?.[1] || '기타'
+}
+export function categoryColor(cat) {
+  return {
+    fridge: '#5B9BD5', freezer: '#8B7ED8', solvent: '#3ABFBF',
+    powder: '#E8854A', consumable: '#5BAD8F', other: '#9AA0A6',
+  }[cat] || '#9AA0A6'
+}
+
 // 멤버 이름 → 일관된 랜덤 컬러 (같은 이름은 항상 같은 색)
 const COLOR_PALETTE = [
   '#2D9B6F', '#5B9BD5', '#F5A623', '#8B7ED8',
