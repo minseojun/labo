@@ -86,7 +86,13 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
   const [sel, setSel] = useState(null)
   const [editTarget, setEditTarget] = useState(null)
   const [query, setQuery] = useState('')
+  const [showTrash, setShowTrash] = useState(false)
   const history = useSupplyHistory(labId, sel?.id)
+
+  // 삭제해도 바로 지우지 않고 deleted_at만 채워서 휴지통에 잠깐 남겨둠 —
+  // 실수로 삭제해도 되돌릴 수 있게. 30일 지나면 서버 cron이 완전히 지움
+  const activeSupplies = supplies.filter(s => !s.deletedAt)
+  const trashedSupplies = supplies.filter(s => s.deletedAt)
 
   // 냉장고맵을 흡수하면서 소모품 전체를 랩 구성원 누구나 수정·삭제할 수 있게
   // 열어둠(예전엔 상태변경 대학원생 이상, 삭제는 교수만). DB의 supplies_update/
@@ -124,10 +130,29 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
   }
 
   const deleteSupply = async () => {
-    if (!window.confirm(`소모품 "${sel.name}"을 삭제하시겠습니까?`)) return
+    if (!window.confirm(`소모품 "${sel.name}"을 휴지통으로 옮길까요? 30일 안에는 복원할 수 있어요.`)) return
     try {
-      await suppliesHook.remove(sel.id)
+      await suppliesHook.update(sel.id, { deletedAt: new Date().toISOString() })
       setSel(null)
+      toast.success('휴지통으로 옮겼어요')
+    } catch (e) {
+      // error shown by hook
+    }
+  }
+
+  const restoreSupply = async (s) => {
+    try {
+      await suppliesHook.update(s.id, { deletedAt: null })
+      toast.success(`"${s.name}"을 복원했어요`)
+    } catch (e) {
+      // error shown by hook
+    }
+  }
+
+  const purgeSupply = async (s) => {
+    if (!window.confirm(`"${s.name}"을 영구 삭제할까요? 되돌릴 수 없어요.`)) return
+    try {
+      await suppliesHook.remove(s.id)
     } catch (e) {
       // error shown by hook
     }
@@ -154,12 +179,12 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
     }
   }
 
-  const green = supplies.filter(s => s.status === 'green').length
-  const yellow = supplies.filter(s => s.status === 'yellow').length
-  const red = supplies.filter(s => s.status === 'red').length
+  const green = activeSupplies.filter(s => s.status === 'green').length
+  const yellow = activeSupplies.filter(s => s.status === 'yellow').length
+  const red = activeSupplies.filter(s => s.status === 'red').length
 
   const q = query.trim().toLowerCase()
-  const filtered = !q ? supplies : supplies.filter(s =>
+  const filtered = !q ? activeSupplies : activeSupplies.filter(s =>
     s.name?.toLowerCase().includes(q) || s.spec?.toLowerCase().includes(q) || s.location?.toLowerCase().includes(q))
 
   // 냉장고맵처럼 비슷한 소모품끼리 한 칸에 묶어서 보여줌 — 항목이 없는 카테고리는 숨김
@@ -172,12 +197,20 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
       <div className="page-header">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div className="page-title">소모품 재고</div>
-          {canEdit && (
-            <button onClick={() => setShowAdd(true)}
-              style={{ padding: '8px 14px', background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-              + 추가
-            </button>
-          )}
+          <div style={{ display: 'flex', gap: 8 }}>
+            {trashedSupplies.length > 0 && (
+              <button onClick={() => setShowTrash(true)}
+                style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '8px 12px', background: 'var(--card)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                <Icon.Trash size={13} strokeWidth={1.8} /> {trashedSupplies.length}
+              </button>
+            )}
+            {canEdit && (
+              <button onClick={() => setShowAdd(true)}
+                style={{ padding: '8px 14px', background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                + 추가
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -196,7 +229,7 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
         </div>
       </div>
 
-      {supplies.length > 0 && (
+      {activeSupplies.length > 0 && (
         <div style={{ padding: '0 16px 12px', position: 'relative' }}>
           <Icon.Search size={15} strokeWidth={2} style={{ position: 'absolute', left: 30, top: '50%', transform: 'translateY(-50%)', color: 'var(--text3)', pointerEvents: 'none' }} />
           <input className="form-input" style={{ paddingLeft: 34 }} value={query} onChange={e => setQuery(e.target.value)}
@@ -387,6 +420,36 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
               </div>
             </div>
             <button className="btn-primary" onClick={addSupply}>추가하기</button>
+          </div>
+        </div>
+      )}
+
+      {showTrash && (
+        <div className="sheet-backdrop" onClick={e => e.target === e.currentTarget && setShowTrash(false)}>
+          <div className="sheet">
+            <div className="sheet-handle" />
+            <div className="sheet-title">휴지통</div>
+            <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 14 }}>삭제된 지 30일이 지나면 자동으로 완전히 지워져요.</div>
+            {trashedSupplies.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text2)', fontSize: 13 }}>휴지통이 비어있어요</div>
+            ) : trashedSupplies.map(s => (
+              <div key={s.id} className="log-item">
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 500 }}>{s.name}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 1 }}>{[s.spec, s.location].filter(Boolean).join(' · ')}</div>
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  <button onClick={() => restoreSupply(s)}
+                    style={{ padding: '6px 10px', background: 'var(--green-light)', color: 'var(--green)', border: 'none', borderRadius: 8, fontSize: 11.5, fontWeight: 600, cursor: 'pointer' }}>
+                    복원
+                  </button>
+                  <button onClick={() => purgeSupply(s)}
+                    style={{ padding: '6px 10px', background: 'var(--red-light)', color: 'var(--red)', border: 'none', borderRadius: 8, fontSize: 11.5, fontWeight: 600, cursor: 'pointer' }}>
+                    영구 삭제
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
