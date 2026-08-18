@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react'
-import { fmtDate, memberColor, assignMemberColors, taskRotation, computeSchedule, scheduleAssigneeOn, scheduleIsOverridden, scheduleMemberWorkload, redistributeTasks } from '../../utils'
+import { fmtDate, memberColor, assignMemberColors, taskRotation, computeSchedule, scheduleAssigneeOn, scheduleIsOverridden, scheduleMemberWorkload, redistributeTasks, isTaskDone, isTaskOpen } from '../../utils'
 import { DAYS } from '../../mockData'
 import { toast } from '../../utils/toast'
 import { Icon } from '../Icon'
@@ -238,6 +238,45 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
     }
   }
 
+  // 완료 체크 — 발생일이 실제 행이 아니라 매번 계산되는 가상의 날짜라서
+  // doneDates 배열에 그 날짜가 있는지로 완료 여부를 표시함
+  const toggleTaskDone = async (task, e) => {
+    e.stopPropagation()
+    const dates = task.doneDates || []
+    const done = dates.includes(selectedDate)
+    try {
+      await schedulesHook.update(task.id, { doneDates: done ? dates.filter(d => d !== selectedDate) : [...dates, selectedDate] })
+    } catch (e) {
+      // error shown by hook
+    }
+  }
+
+  // "오늘 못해요" — 당번 본인이 이 날짜를 openDates에 올려두면, 다른 팀원
+  // 누구나 자원해서 바로 가져갈 수 있음(claimOpenTask)
+  const markTaskUnable = async (task, e) => {
+    e.stopPropagation()
+    const opens = task.openDates || []
+    if (opens.includes(selectedDate)) return
+    try {
+      await schedulesHook.update(task.id, { openDates: [...opens, selectedDate] })
+      toast.success('다른 팀원이 대신 맡을 수 있도록 열어뒀어요')
+    } catch (e) {
+      // error shown by hook
+    }
+  }
+
+  const claimOpenTask = async (task, e) => {
+    e.stopPropagation()
+    const opens = (task.openDates || []).filter(d => d !== selectedDate)
+    const nextOverrides = { ...(task.overrides || {}), [selectedDate]: user.name }
+    try {
+      await schedulesHook.update(task.id, { openDates: opens, overrides: nextOverrides })
+      toast.success(`${dateLabel} ${task.name} 담당을 맡았어요`)
+    } catch (e) {
+      // error shown by hook
+    }
+  }
+
   const openEdit = (task) => {
     setEditTask({
       id: task.id,
@@ -307,22 +346,52 @@ export default function TaskSection({ labId, tasks, schedulesHook, members, user
           const color = colorMap[task.todayAssignee] || memberColor(task.todayAssignee)
           const rotation = taskRotation(task)
           const overridden = scheduleIsOverridden(schedule, task.id, selectedDate)
+          const done = isTaskDone(task, selectedDate)
+          const open = isTaskOpen(task, selectedDate)
+          const isMine = task.todayAssignee === user.name
+          const accent = open ? 'var(--yellow)' : color
           return (
-            <div key={task.id} className="tsk-card" style={{ '--accent': color, cursor: 'pointer' }} onClick={() => openEdit(task)}>
-              <div className="tsk-avatar" style={{ background: `${color}1A`, color }}>{initial(task.todayAssignee)}</div>
+            <div key={task.id} className="tsk-card" style={{ '--accent': accent, cursor: 'pointer', opacity: done ? .6 : 1 }} onClick={() => openEdit(task)}>
+              <div className="tsk-avatar"
+                style={{ background: done ? 'var(--green-light)' : `${color}1A`, color: done ? 'var(--green)' : color, cursor: isMine && !open ? 'pointer' : 'default' }}
+                onClick={isMine && !open ? e => toggleTaskDone(task, e) : undefined}
+                aria-label={isMine && !open ? (done ? '완료 취소' : '완료 체크') : undefined}>
+                {done ? <Icon.ClipboardCheck size={16} strokeWidth={2} /> : initial(task.todayAssignee)}
+              </div>
               <div className="tsk-body">
-                <div className="tsk-name">{task.name}</div>
+                <div className="tsk-name" style={{ textDecoration: done ? 'line-through' : 'none' }}>{task.name}</div>
                 <div className="tsk-metarow">
-                  <span className="tsk-strong" style={{ color }}>{task.todayAssignee}</span>
-                  {overridden && <span style={{ fontSize: 10, color: 'var(--green)', fontWeight: 600 }}>교체됨</span>}
-                  {!overridden && rotation.length > 1 && <span style={{ fontSize: 10, color: 'var(--text3)' }}>({rotation.length}명 순환)</span>}
+                  {open ? (
+                    <span style={{ fontSize: 11.5, color: '#b97b10', fontWeight: 700 }}>담당자 구함 — {task.todayAssignee}님이 오늘 어려움</span>
+                  ) : (
+                    <>
+                      <span className="tsk-strong" style={{ color }}>{task.todayAssignee}</span>
+                      {done && <span style={{ fontSize: 10, color: 'var(--green)', fontWeight: 600 }}>완료</span>}
+                      {!done && overridden && <span style={{ fontSize: 10, color: 'var(--green)', fontWeight: 600 }}>교체됨</span>}
+                      {!done && !overridden && rotation.length > 1 && <span style={{ fontSize: 10, color: 'var(--text3)' }}>({rotation.length}명 순환)</span>}
+                    </>
+                  )}
                   <span className="tsk-sep" />
                   <span>{repeatLabel(task)}</span>
                 </div>
                 {task.note && <div className="tsk-note">{task.note}</div>}
               </div>
-              <button className="tsk-del" onClick={e => { e.stopPropagation(); openSwap(task) }} aria-label="담당자 바꾸기"><Icon.Refresh size={14} strokeWidth={1.8} /></button>
-              <button className="tsk-del" onClick={e => { e.stopPropagation(); deleteTask(task) }} aria-label="삭제">✕</button>
+              {open ? (
+                <button onClick={e => claimOpenTask(task, e)} style={{
+                  flexShrink: 0, padding: '7px 12px', background: 'var(--green)', color: '#fff',
+                  border: 'none', borderRadius: 20, fontSize: 11.5, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
+                }}>제가 할게요</button>
+              ) : (
+                <>
+                  {isMine && !done && (
+                    <button className="tsk-del" onClick={e => markTaskUnable(task, e)} aria-label="오늘 못해요" title="오늘 못해요">
+                      <Icon.AlertTriangle size={14} strokeWidth={1.8} />
+                    </button>
+                  )}
+                  <button className="tsk-del" onClick={e => { e.stopPropagation(); openSwap(task) }} aria-label="담당자 바꾸기"><Icon.Refresh size={14} strokeWidth={1.8} /></button>
+                  <button className="tsk-del" onClick={e => { e.stopPropagation(); deleteTask(task) }} aria-label="삭제">✕</button>
+                </>
+              )}
             </div>
           )
         })}

@@ -2,7 +2,6 @@ import { Icon } from './components/Icon'
 import HazardLogScreen from './components/HazardLogScreen'
 import GpuReservationScreen from './components/GpuReservationScreen'
 import DatasetScreen from './components/DatasetScreen'
-import FridgeMapScreen from './components/FridgeMapScreen'
 import OnboardingChecklistScreen from './components/OnboardingChecklistScreen'
 
 // 기본 탭(홈 제외) — 각자 자기 탭바에서 개인적으로 끄고 켤 수 있음 (Sidebar의 "모듈 관리" 참고)
@@ -24,14 +23,6 @@ export const MODULES = [
     label: '위험물',
     description: '시약 유출·노출·화상 등 실험실 안전 사고를 기록하고 조회해요.',
     Screen: HazardLogScreen,
-  },
-  {
-    key: 'wet_lab_fridge_map',
-    domain: 'Wet Lab',
-    icon: Icon.Snowflake,
-    label: '냉장고 맵',
-    description: '냉장/냉동고 어디에 뭐가 있는지 위치와 유효기한을 검색해요.',
-    Screen: FridgeMapScreen,
   },
   {
     key: 'dry_lab_gpu_reservation',

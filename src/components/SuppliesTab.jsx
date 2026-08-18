@@ -1,9 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../supabase'
 import { toCamelRow } from '../hooks/useSupabase'
-import { statusLabel, statusBg, statusColor } from '../utils'
+import { statusLabel, statusBg, statusColor, fmtDate } from '../utils'
 import { toast } from '../utils/toast'
 import { Icon } from './Icon'
+
+const daysUntil = (dateStr) => {
+  if (!dateStr) return null
+  return Math.ceil((new Date(dateStr) - new Date(fmtDate(new Date()))) / 86400000)
+}
 
 // supply_history는 별도 테이블이라 필요한 만큼만 가져오면 되고, 소모품 하나를
 // 오래 관리해서 이력이 아무리 쌓여도 여기 쿼리 비용은 그대로임
@@ -46,16 +51,18 @@ function SkeletonRow() {
 
 export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
   const [showAdd, setShowAdd] = useState(false)
-  const [form, setForm] = useState({ name: '', spec: '', status: 'green' })
+  const [form, setForm] = useState({ name: '', spec: '', status: 'green', location: '', expiresAt: '' })
   const [sel, setSel] = useState(null)
+  const [editTarget, setEditTarget] = useState(null)
   const [query, setQuery] = useState('')
   const history = useSupplyHistory(labId, sel?.id)
 
-  const isAdmin = user.role === '교수'
-  const canEdit = user.role === '교수' || user.role === '대학원생'
+  // 냉장고맵을 흡수하면서 소모품 전체를 랩 구성원 누구나 수정·삭제할 수 있게
+  // 열어둠(예전엔 상태변경 대학원생 이상, 삭제는 교수만). DB의 supplies_update/
+  // supplies_delete 정책도 is_lab_member로 같이 완화해뒀음
+  const canEdit = true
 
   const changeStatus = async (id, newStatus, currentStatus) => {
-    if (!canEdit) return
     try {
       await suppliesHook.update(id, { status: newStatus })
       // 변경 이력은 supply_history 별도 테이블에 쌓음 — supplies 행 안에 배열로
@@ -77,9 +84,9 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
     if (!name) { toast.error('품목 이름을 입력해주세요.'); return }
     if (name.length > 100) { toast.error('이름은 100자 이내로 입력해주세요.'); return }
     try {
-      await suppliesHook.add({ ...form, name })
+      await suppliesHook.add({ ...form, name, location: form.location.trim() || null, expiresAt: form.expiresAt || null })
       setShowAdd(false)
-      setForm({ name: '', spec: '', status: 'green' })
+      setForm({ name: '', spec: '', status: 'green', location: '', expiresAt: '' })
     } catch (e) {
       // error shown by hook
     }
@@ -95,12 +102,34 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
     }
   }
 
+  const openEditSupply = (s) => {
+    setEditTarget({ ...s, location: s.location || '', expiresAt: s.expiresAt || '' })
+    setSel(null)
+  }
+
+  const saveEditSupply = async () => {
+    const name = editTarget.name.trim()
+    if (!name) { toast.error('품목 이름을 입력해주세요.'); return }
+    if (name.length > 100) { toast.error('이름은 100자 이내로 입력해주세요.'); return }
+    try {
+      await suppliesHook.update(editTarget.id, {
+        name, spec: editTarget.spec.trim(),
+        location: editTarget.location.trim() || null, expiresAt: editTarget.expiresAt || null,
+      })
+      setEditTarget(null)
+      toast.success('수정했어요')
+    } catch (e) {
+      // error shown by hook
+    }
+  }
+
   const green = supplies.filter(s => s.status === 'green').length
   const yellow = supplies.filter(s => s.status === 'yellow').length
   const red = supplies.filter(s => s.status === 'red').length
 
   const q = query.trim().toLowerCase()
-  const filtered = !q ? supplies : supplies.filter(s => s.name?.toLowerCase().includes(q) || s.spec?.toLowerCase().includes(q))
+  const filtered = !q ? supplies : supplies.filter(s =>
+    s.name?.toLowerCase().includes(q) || s.spec?.toLowerCase().includes(q) || s.location?.toLowerCase().includes(q))
 
   return (
     <div>
@@ -131,17 +160,11 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
         </div>
       </div>
 
-      {!canEdit && (
-        <div style={{ margin: '0 16px 12px', padding: '10px 14px', background: 'var(--yellow-light)', borderRadius: 8, fontSize: 12, color: '#b97b10' }}>
-          조회만 가능합니다. 상태 변경은 대학원생 이상만 가능해요.
-        </div>
-      )}
-
       {supplies.length > 0 && (
         <div style={{ padding: '0 16px 12px', position: 'relative' }}>
           <Icon.Search size={15} strokeWidth={2} style={{ position: 'absolute', left: 30, top: '50%', transform: 'translateY(-50%)', color: 'var(--text3)', pointerEvents: 'none' }} />
           <input className="form-input" style={{ paddingLeft: 34 }} value={query} onChange={e => setQuery(e.target.value)}
-            placeholder="품목 이름, 규격으로 검색" />
+            placeholder="품목 이름, 규격, 보관 위치로 검색" />
         </div>
       )}
 
@@ -156,26 +179,29 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
         </div>
       ) : (
         <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', margin: '0 16px 12px', overflow: 'hidden' }}>
-          {filtered.map(s => (
-            <div key={s.id} className="supply-row" onClick={() => setSel(s)}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 500, fontSize: 13 }}>{s.name}</div>
-                <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 1 }}>{s.spec}</div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: statusColor(s.status) }}>{statusLabel(s.status)}</span>
-                {canEdit ? (
+          {filtered.map(s => {
+            const d = daysUntil(s.expiresAt)
+            const soon = d !== null && d <= 14
+            return (
+              <div key={s.id} className="supply-row" onClick={() => setSel(s)}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 500, fontSize: 13 }}>{s.name}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {[s.spec, s.location].filter(Boolean).join(' · ')}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                  {soon && <span className="chip chip-red">{d <= 0 ? '만료' : `D-${d}`}</span>}
+                  <span style={{ fontSize: 11, fontWeight: 600, color: statusColor(s.status) }}>{statusLabel(s.status)}</span>
                   <div className="traffic-btns" onClick={e => e.stopPropagation()}>
                     <div className={`traffic-btn g${s.status === 'green' ? ' active' : ''}`} onClick={() => changeStatus(s.id, 'green', s.status)} />
                     <div className={`traffic-btn y${s.status === 'yellow' ? ' active' : ''}`} onClick={() => changeStatus(s.id, 'yellow', s.status)} />
                     <div className={`traffic-btn r${s.status === 'red' ? ' active' : ''}`} onClick={() => changeStatus(s.id, 'red', s.status)} />
                   </div>
-                ) : (
-                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: statusColor(s.status) }} />
-                )}
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
@@ -192,16 +218,21 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
                 <div style={{ fontSize: 12, color: 'var(--text2)' }}>{sel.spec}</div>
               </div>
             </div>
-            {canEdit && (
-              <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-                {[['green', '정상'], ['yellow', '곧 부족'], ['red', '재고 없음']].map(([v, l]) => (
-                  <button key={v} onClick={() => changeStatus(sel.id, v, sel.status)}
-                    style={{ flex: 1, padding: '10px 6px', border: `2px solid ${sel.status === v ? statusColor(v) : 'var(--border)'}`, borderRadius: 8, background: sel.status === v ? statusBg(v) : 'var(--card)', fontSize: 11, fontWeight: 600, cursor: 'pointer', color: sel.status === v ? statusColor(v) : 'var(--text2)' }}>
-                    {l}
-                  </button>
-                ))}
+            {sel.location && <div className="log-item"><span style={{ color: 'var(--text2)' }}>보관 위치</span><span>{sel.location}</span></div>}
+            {sel.expiresAt && (
+              <div className="log-item">
+                <span style={{ color: 'var(--text2)' }}>유효기한</span>
+                <span>{sel.expiresAt}{daysUntil(sel.expiresAt) !== null && daysUntil(sel.expiresAt) <= 14 ? ` · ${daysUntil(sel.expiresAt) <= 0 ? '만료됨' : `D-${daysUntil(sel.expiresAt)}`}` : ''}</span>
               </div>
             )}
+            <div style={{ display: 'flex', gap: 8, margin: '16px 0' }}>
+              {[['green', '정상'], ['yellow', '곧 부족'], ['red', '재고 없음']].map(([v, l]) => (
+                <button key={v} onClick={() => changeStatus(sel.id, v, sel.status)}
+                  style={{ flex: 1, padding: '10px 6px', border: `2px solid ${sel.status === v ? statusColor(v) : 'var(--border)'}`, borderRadius: 8, background: sel.status === v ? statusBg(v) : 'var(--card)', fontSize: 11, fontWeight: 600, cursor: 'pointer', color: sel.status === v ? statusColor(v) : 'var(--text2)' }}>
+                  {l}
+                </button>
+              ))}
+            </div>
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: .5 }}>변경 이력</div>
             {history.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '12px 0', fontSize: 12, color: 'var(--text2)' }}>변경 이력이 없습니다</div>
@@ -216,19 +247,53 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
                 </div>
               </div>
             ))}
-            {isAdmin && (
-              <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-                <button onClick={deleteSupply}
-                  style={{ width: '100%', padding: 10, background: 'var(--red-light)', color: 'var(--red)', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer', fontSize: 13 }}>
-                  소모품 삭제
-                </button>
-              </div>
-            )}
+            <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border)', display: 'flex', gap: 8 }}>
+              <button onClick={() => openEditSupply(sel)}
+                style={{ flex: 1, padding: 10, background: 'var(--green-light)', color: 'var(--green)', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer', fontSize: 13 }}>
+                수정
+              </button>
+              <button onClick={deleteSupply}
+                style={{ flex: 1, padding: 10, background: 'var(--red-light)', color: 'var(--red)', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer', fontSize: 13 }}>
+                삭제
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {showAdd && canEdit && (
+      {editTarget && (
+        <div className="sheet-backdrop" onClick={e => e.target === e.currentTarget && setEditTarget(null)}>
+          <div className="sheet">
+            <div className="sheet-handle" />
+            <div className="sheet-title">소모품 수정</div>
+            <div className="form-group">
+              <label className="form-label">품목 이름</label>
+              <input className="form-input" value={editTarget.name} maxLength={100}
+                onChange={e => setEditTarget(p => ({ ...p, name: e.target.value }))} autoFocus />
+            </div>
+            <div className="form-group">
+              <label className="form-label">규격/단위 (선택)</label>
+              <input className="form-input" value={editTarget.spec || ''} maxLength={100}
+                onChange={e => setEditTarget(p => ({ ...p, spec: e.target.value }))}
+                placeholder="예: 500ml, 10개입" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">보관 위치 (선택)</label>
+              <input className="form-input" value={editTarget.location} maxLength={60}
+                onChange={e => setEditTarget(p => ({ ...p, location: e.target.value }))}
+                placeholder="예: 4℃ 냉장고 · 2번 칸" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">유효기한 (선택)</label>
+              <input className="form-input" type="date" value={editTarget.expiresAt}
+                onChange={e => setEditTarget(p => ({ ...p, expiresAt: e.target.value }))} />
+            </div>
+            <button className="btn-primary" onClick={saveEditSupply}>저장하기</button>
+          </div>
+        </div>
+      )}
+
+      {showAdd && (
         <div className="sheet-backdrop" onClick={e => e.target === e.currentTarget && setShowAdd(false)}>
           <div className="sheet">
             <div className="sheet-handle" />
@@ -240,10 +305,21 @@ export default function SuppliesTab({ labId, supplies, suppliesHook, user }) {
                 placeholder="예: 포토레지스트 PR-100" />
             </div>
             <div className="form-group">
-              <label className="form-label">규격/단위</label>
+              <label className="form-label">규격/단위 (선택)</label>
               <input className="form-input" value={form.spec} maxLength={100}
                 onChange={e => setForm(p => ({ ...p, spec: e.target.value }))}
                 placeholder="예: 500ml, 10개입" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">보관 위치 (선택)</label>
+              <input className="form-input" value={form.location} maxLength={60}
+                onChange={e => setForm(p => ({ ...p, location: e.target.value }))}
+                placeholder="예: 4℃ 냉장고 · 2번 칸" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">유효기한 (선택)</label>
+              <input className="form-input" type="date" value={form.expiresAt}
+                onChange={e => setForm(p => ({ ...p, expiresAt: e.target.value }))} />
             </div>
             <div className="form-group">
               <label className="form-label">초기 상태</label>
